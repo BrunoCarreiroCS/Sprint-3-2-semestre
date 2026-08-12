@@ -1,6 +1,6 @@
 # Especificacao de Design - NextFrame JOVI AI LensLab
 
-**Status:** aprovada em conversa, aguardando revisao do documento  
+**Status:** aprovada pelo usuario em 12/08/2026
 **Data:** 12/08/2026  
 **Disciplina:** Computational Thinking with Python - Sprint 3  
 **Equipe:** NextFrame  
