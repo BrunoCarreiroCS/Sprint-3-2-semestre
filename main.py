@@ -275,7 +275,9 @@ def executar_analise(
     if quer_detalhes:
         print(formatar_analise(resultado))
     resultado["caminho_original"] = str(caminho)
-    if oferecer_proximo_passo and resultado.get("recomendacoes"):
+    recomendacoes = resultado.get("recomendacoes") or []
+    tem_recomendacao_real = bool(recomendacoes) and recomendacoes[0]["codigo_acao"] != "manter_configuracao"
+    if oferecer_proximo_passo and tem_recomendacao_real:
         oferecer_marcar_recomendacao(usuario, resultado, caminho_banco)
     return resultado
 

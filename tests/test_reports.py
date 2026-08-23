@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from reports import formatar_resumo_analise, formatar_resumo_comparacao
+from reports import ERRO_IA_LEGIVEL, formatar_analise, formatar_resumo_analise, formatar_resumo_comparacao
 
 
 def resultado_base(pontuacao: float, dimensoes: dict, analise_ia: dict | None = None) -> dict:
     return {
+        "modo_execucao": "hibrido" if analise_ia else "offline",
         "pontuacao_geral": pontuacao,
         "dimensoes": dimensoes,
         "analise_ia": analise_ia,
@@ -81,6 +82,19 @@ class ReportsTest(unittest.TestCase):
         texto = formatar_resumo_comparacao(comparacao)
         self.assertIn("Nao ajudou", texto)
         self.assertIn("piorou 8 pontos", texto)
+
+    def test_detalhe_analise_nunca_expoe_codigo_de_erro_cru(self) -> None:
+        resultado = resultado_base(
+            50.0, {"exposicao": 50.0, "nitidez": 50.0, "contraste": 50.0, "cor": 50.0, "resolucao": 50.0, "intencao": 50.0}
+        )
+        for codigo in ERRO_IA_LEGIVEL:
+            resultado["erro_ia"] = codigo
+            texto = formatar_analise(resultado)
+            self.assertNotIn(codigo, texto, f"codigo cru '{codigo}' vazou no relatorio detalhado")
+
+    def test_falha_api_generica_tem_mensagem_legivel(self) -> None:
+        self.assertIn("falha_api", ERRO_IA_LEGIVEL)
+        self.assertNotEqual(ERRO_IA_LEGIVEL["falha_api"], "falha_api")
 
 
 if __name__ == "__main__":

@@ -47,6 +47,7 @@ ERRO_IA_LEGIVEL = {
     "resposta_vazia": "a API respondeu sem conteudo",
     "resposta_invalida": "a resposta da API nao passou na validacao de schema",
     "json_invalido": "a resposta da API nao era um JSON valido",
+    "falha_api": "falha inesperada ao chamar a API do Gemini",
 }
 
 
