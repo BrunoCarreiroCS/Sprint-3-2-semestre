@@ -14,6 +14,18 @@ O diferencial não é apenas “usar IA”. O ciclo completo é:
 
 As mensagens sempre identificam o que foi **MEDIDO**, **inferido pela IA**, **PREVISTO** e **VERIFICADO**. A simulação nunca é apresentada como recaptura real.
 
+## Experiência no terminal
+
+- **Resumo primeiro, técnico por opção:** cada análise e cada recaptura mostram um resultado curto em linguagem simples (nota, o que está bom, o que pode melhorar, a dica principal). Os termos técnicos (Exposição, Nitidez, MEDIDO/IA/PREVISTO/VERIFICADO, pesos) só aparecem se você pedir "ver detalhes completos".
+- **Tour guiado:** ao criar um perfil, o programa oferece rodar automaticamente uma análise de exemplo, sem pedir nenhuma entrada extra.
+- **Explorador de arquivos do Windows:** ao pedir uma foto, o programa já sugere abrir o explorador nativo (basta apertar Enter); as fotos em `samples/` também aparecem numeradas, e ainda é possível digitar outro caminho manualmente. Requer `tkinter` (já incluso na instalação padrão do Python para Windows).
+- **Enter repete o último valor:** o objetivo mais usado na sessão aparece marcado e pode ser reaproveitado só com Enter.
+- **Cancelar em qualquer etapa:** todo fluxo com várias perguntas aceita `0` para voltar sem perder o que já foi salvo.
+- **Próximo passo sugerido:** depois de analisar uma foto, o programa já pergunta se você quer marcar uma recomendação para testar.
+- **Marcação com função real:** a recomendação marcada mais recentemente (e ainda não verificada) vira um atalho em "Comparar antes e depois" — confirma com Enter em vez de escolher de novo a análise e a recomendação do zero.
+- **Barra de pontuação e cores:** a pontuação geral e cada dimensão têm uma barra ASCII; os rótulos MEDIDO/IA/PREVISTO/VERIFICADO usam cor (via `colorama`) quando o terminal suporta.
+- **Contexto legível:** em "Ver evolução", os pesos aprendidos aparecem com o contexto por extenso (ex.: "Retrato, ambiente escuro, assunto parado") em vez do código interno.
+
 ## Requisitos atendidos
 
 - Menu com 9 funcionalidades e opção de saída.
@@ -62,6 +74,8 @@ GEMINI_MODEL=gemini-2.5-flash
 ```
 
 O `.env` está ignorado pelo Git e não entra no ZIP. Não cole a chave no código, no PDF ou em capturas de tela.
+
+Para apresentar o modo híbrido sem depender de internet ou de uma chave real, defina `JOVI_DEMO_MODE=1` no `.env`. Nesse modo o cliente Gemini é substituído por respostas simuladas (mesma validação de schema), e o menu mostra "Gemini: chave demo".
 
 ## Demonstração sugerida
 

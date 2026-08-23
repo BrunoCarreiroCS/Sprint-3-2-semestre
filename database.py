@@ -79,7 +79,9 @@ def inicializar_banco(caminho: str | Path = DB_PATH) -> None:
         confianca TEXT NOT NULL,
         explicacao TEXT NOT NULL,
         evidencias_json TEXT NOT NULL,
+        peso_aprendido REAL NOT NULL DEFAULT 1.0,
         selecionada INTEGER NOT NULL DEFAULT 0 CHECK (selecionada IN (0,1)),
+        marcado_em TEXT,
         UNIQUE (analise_id, posicao_ranking)
     );
     CREATE TABLE IF NOT EXISTS comparacoes (
@@ -112,6 +114,11 @@ def inicializar_banco(caminho: str | Path = DB_PATH) -> None:
     """
     with transacao(caminho) as conn:
         conn.executescript(schema)
+        colunas = {row["name"] for row in conn.execute("PRAGMA table_info(recomendacoes)")}
+        if "peso_aprendido" not in colunas:
+            conn.execute("ALTER TABLE recomendacoes ADD COLUMN peso_aprendido REAL NOT NULL DEFAULT 1.0")
+        if "marcado_em" not in colunas:
+            conn.execute("ALTER TABLE recomendacoes ADD COLUMN marcado_em TEXT")
 
 
 def _row_dict(row: sqlite3.Row | None) -> dict | None:
@@ -178,12 +185,13 @@ def salvar_analise_com_recomendacoes(
             conn.execute(
                 """INSERT INTO recomendacoes(
                     analise_id,codigo_acao,posicao_ranking,ganho_previsto,risco,esforco,
-                    confianca,explicacao,evidencias_json
-                ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                    confianca,explicacao,evidencias_json,peso_aprendido
+                ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
                 (
                     analise_id, rec["codigo_acao"], posicao, float(rec["ganho_previsto"]),
                     rec["risco"], rec["esforco"], rec["confianca"], rec["explicacao"],
                     json.dumps(rec.get("evidencias", []), ensure_ascii=False),
+                    float(rec.get("peso_aprendido", 1.0)),
                 ),
             )
     return analise_id
@@ -228,11 +236,32 @@ def marcar_recomendacao(recomendacao_id: int, analise_id: int, caminho: str | Pa
     with transacao(caminho) as conn:
         conn.execute("UPDATE recomendacoes SET selecionada = 0 WHERE analise_id = ?", (analise_id,))
         cursor = conn.execute(
-            "UPDATE recomendacoes SET selecionada = 1 WHERE id = ? AND analise_id = ?",
-            (recomendacao_id, analise_id),
+            "UPDATE recomendacoes SET selecionada = 1, marcado_em = ? WHERE id = ? AND analise_id = ?",
+            (agora_iso(), recomendacao_id, analise_id),
         )
         if cursor.rowcount != 1:
             raise ValueError("Recomendacao nao encontrada para esta analise.")
+
+
+def buscar_recomendacao_pendente(usuario_id: int, caminho: str | Path = DB_PATH) -> dict | None:
+    """Recomendacao marcada mais recentemente que ainda nao tem uma recaptura comparada."""
+    with conectar(caminho) as conn:
+        row = conn.execute(
+            """SELECT r.*, a.nome_arquivo, a.objetivo, a.intencao, a.estilo, a.imagem_hash
+            FROM recomendacoes r
+            JOIN analises a ON a.id = r.analise_id
+            WHERE a.usuario_id = ?
+              AND r.marcado_em IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM comparacoes c WHERE c.recomendacao_id = r.id)
+            ORDER BY r.marcado_em DESC
+            LIMIT 1""",
+            (usuario_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    item = dict(row)
+    item["evidencias"] = json.loads(item.pop("evidencias_json"))
+    return item
 
 
 def obter_pesos(usuario_id: int, contexto: str, caminho: str | Path = DB_PATH) -> dict[str, float]:

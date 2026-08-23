@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -50,6 +51,40 @@ class ValidatorsAndImagesTest(unittest.TestCase):
         destino = gerar_simulacao(self.image, "adicionar_iluminacao", 999)
         self.assertTrue(destino.exists())
         self.assertEqual(self.image.read_bytes(), conteudo_antes)
+
+    def test_exif_do_sub_ifd_e_lido(self) -> None:
+        from PIL import Image as PILImage
+        from PIL.ExifTags import Base as ExifBase
+
+        caminho = self.dir / "com_exif.jpg"
+        imagem = PILImage.new("RGB", (640, 480), (60, 70, 80))
+        exif = imagem.getexif()
+        sub_ifd = exif.get_ifd(0x8769)
+        sub_ifd[ExifBase.ISOSpeedRatings.value] = 400
+        sub_ifd[ExifBase.ExposureTime.value] = 0.02
+        imagem.save(caminho, exif=exif)
+
+        resultado = analisar_imagem(caminho)
+        self.assertEqual(resultado["exif"].get("iso"), 400.0)
+        self.assertAlmostEqual(resultado["exif"].get("tempo_exposicao"), 0.02)
+
+    def test_sem_exif_nao_gera_erro(self) -> None:
+        resultado = analisar_imagem(self.image)
+        self.assertEqual(resultado["exif"], {})
+
+    def test_seletor_de_arquivo_devolve_caminho_validado(self) -> None:
+        import main
+
+        with patch("tkinter.filedialog.askopenfilename", return_value=str(self.image)):
+            resultado = main.abrir_seletor_arquivo()
+        self.assertEqual(resultado, self.image.resolve())
+
+    def test_seletor_de_arquivo_cancelado_devolve_none(self) -> None:
+        import main
+
+        with patch("tkinter.filedialog.askopenfilename", return_value=""):
+            resultado = main.abrir_seletor_arquivo()
+        self.assertIsNone(resultado)
 
 
 if __name__ == "__main__":

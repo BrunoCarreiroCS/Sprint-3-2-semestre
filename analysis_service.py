@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 import database
-from config import DB_PATH, get_gemini_api_key
+from config import DB_PATH, get_gemini_api_key, is_demo_mode
 from gemini_client import analisar_com_gemini
 from image_analyzer import analisar_imagem, preparar_imagem_api
 from recommendation_engine import (
@@ -29,7 +29,9 @@ def analisar_fotografia(
 ) -> dict:
     metricas = analisar_imagem(caminho_imagem)
     resultado_ia = {"sucesso": False, "dados": None, "erro": "modo_offline"}
-    pode_usar_api = bool(permitir_api and usuario.get("consentimento_api") and get_gemini_api_key())
+    pode_usar_api = bool(
+        permitir_api and usuario.get("consentimento_api") and (get_gemini_api_key() or is_demo_mode())
+    )
     if pode_usar_api:
         with preparar_imagem_api(caminho_imagem) as temporaria:
             resultado_ia = cliente_ia(temporaria, objetivo, intencao)

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 import database
-from learning_engine import calcular_ajuste_peso, comparar_e_aprender
+from learning_engine import calcular_ajuste_peso, calcular_fator_confianca, comparar_e_aprender
 
 
 def analise_base(usuario_id: int, hash_imagem: str, pontuacao: float) -> dict:
@@ -82,6 +82,76 @@ class DatabaseAndLearningTest(unittest.TestCase):
     def test_ajuste_respeita_sinais_conflitantes(self) -> None:
         self.assertEqual(calcular_ajuste_peso(8, 1), 0.0)
         self.assertEqual(calcular_ajuste_peso(-8, 5), -0.03)
+
+    def test_recaptura_identica_a_original_e_recusada(self) -> None:
+        antes_id = database.salvar_analise_com_recomendacoes(
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+        )
+        depois_id = database.salvar_analise_com_recomendacoes(
+            analise_base(self.ana["id"], "a" * 64, 55), [REC], self.db
+        )
+        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
+        with self.assertRaises(ValueError):
+            comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.db)
+
+    def test_fator_confianca_diminui_com_mais_amostras(self) -> None:
+        self.assertEqual(calcular_fator_confianca(0), 1.0)
+        self.assertLess(calcular_fator_confianca(5), calcular_fator_confianca(0))
+        self.assertEqual(calcular_fator_confianca(100), 0.3)
+
+    def test_nenhuma_pendente_quando_nada_foi_marcado(self) -> None:
+        database.salvar_analise_com_recomendacoes(analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db)
+        self.assertIsNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
+
+    def test_pendente_retorna_recomendacao_marcada_mais_recente(self) -> None:
+        antes_id = database.salvar_analise_com_recomendacoes(
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+        )
+        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
+        database.marcar_recomendacao(rec_id, antes_id, self.db)
+        pendente = database.buscar_recomendacao_pendente(self.ana["id"], self.db)
+        self.assertIsNotNone(pendente)
+        self.assertEqual(pendente["id"], rec_id)
+        self.assertEqual(pendente["analise_id"], antes_id)
+        self.assertEqual(pendente["nome_arquivo"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg")
+
+    def test_pendente_some_apos_comparacao_registrada(self) -> None:
+        antes_id = database.salvar_analise_com_recomendacoes(
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+        )
+        depois_id = database.salvar_analise_com_recomendacoes(
+            analise_base(self.ana["id"], "b" * 64, 55), [REC], self.db
+        )
+        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
+        database.marcar_recomendacao(rec_id, antes_id, self.db)
+        self.assertIsNotNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
+        comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.db)
+        self.assertIsNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
+
+    def test_pendente_isolada_por_usuario(self) -> None:
+        antes_id = database.salvar_analise_com_recomendacoes(
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+        )
+        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
+        database.marcar_recomendacao(rec_id, antes_id, self.db)
+        self.assertIsNotNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
+        self.assertIsNone(database.buscar_recomendacao_pendente(self.bia["id"], self.db))
+
+    def test_ajuste_encolhe_conforme_historico_cresce_no_mesmo_contexto(self) -> None:
+        primeiro_ajuste = None
+        for indice in range(3):
+            antes_id = database.salvar_analise_com_recomendacoes(
+                analise_base(self.ana["id"], f"{indice}a".rjust(64, "0"), 40), [REC], self.db
+            )
+            depois_id = database.salvar_analise_com_recomendacoes(
+                analise_base(self.ana["id"], f"{indice}b".rjust(64, "0"), 60), [REC], self.db
+            )
+            rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
+            resultado = comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.db)
+            if indice == 0:
+                primeiro_ajuste = resultado["ajuste_aplicado"]
+            else:
+                self.assertLess(resultado["ajuste_aplicado"], primeiro_ajuste)
 
 
 if __name__ == "__main__":

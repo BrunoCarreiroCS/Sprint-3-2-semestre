@@ -154,6 +154,20 @@ def gerar_contexto_chave(objetivo: str, metricas: dict, movimento: bool, nivel: 
     return f"{objetivo}|{faixa}|{'movimento' if movimento else 'estatico'}|{nivel}|{estilo}"
 
 
+_FAIXA_LEGIVEL = {"escuro": "ambiente escuro", "claro": "ambiente muito claro", "equilibrado": "luz equilibrada"}
+
+
+def formatar_contexto(contexto_chave: str) -> str:
+    """Traduz um ``contexto_chave`` (objetivo|faixa|movimento|nivel|estilo) para texto legivel."""
+    partes = contexto_chave.split("|")
+    if len(partes) != 5:
+        return contexto_chave
+    objetivo, faixa, movimento, nivel, estilo = partes
+    faixa_legivel = _FAIXA_LEGIVEL.get(faixa, faixa)
+    movimento_legivel = "com movimento" if movimento == "movimento" else "assunto parado"
+    return f"{objetivo.replace('_', ' ').title()}, {faixa_legivel}, {movimento_legivel}, nivel {nivel}, estilo {estilo}"
+
+
 def simular_intervencoes(
     problemas: dict[str, dict],
     movimento: bool,
@@ -164,6 +178,7 @@ def simular_intervencoes(
     alternativas: list[dict] = []
     for codigo, definicao in ACOES.items():
         contribuicoes = []
+        fontes_contribuintes: set[str] = set()
         ganho = 0.0
         for problema, eficacia in definicao["resolve"].items():
             if problema in problemas:
@@ -171,6 +186,7 @@ def simular_intervencoes(
                 contribuicao = 28 * float(item["severidade"]) * eficacia
                 ganho += contribuicao
                 contribuicoes.extend(item["evidencias"])
+                fontes_contribuintes.update(item["fontes"])
         if ganho <= 0:
             continue
         if codigo == "modo_noturno" and movimento:
@@ -178,14 +194,17 @@ def simular_intervencoes(
             contribuicoes.append("Movimento detectado reduz a utilidade de exposicao prolongada.")
         peso = _clamp(float(pesos_aprendidos.get(codigo, 1.0)), 0.5, 1.5)
         ganho = _clamp(ganho * peso, 0, 35)
-        fontes = {fonte for problema in problemas.values() for fonte in problema["fontes"] if any(e in contribuicoes for e in problema["evidencias"])}
-        confianca = "alta" if {"MEDIDO", "IA"}.issubset(fontes) else "media" if fontes else "baixa"
+        confianca = (
+            "alta" if {"MEDIDO", "IA"}.issubset(fontes_contribuintes)
+            else "media" if fontes_contribuintes else "baixa"
+        )
         alternativas.append({
             "codigo_acao": codigo,
             "ganho_previsto": round(ganho, 1),
             "risco": definicao["risco"], "esforco": definicao["esforco"],
             "confianca": confianca, "explicacao": definicao["explicacao"],
             "evidencias": list(dict.fromkeys(contribuicoes))[:4],
+            "peso_aprendido": round(peso, 2),
         })
     alternativas.sort(key=lambda item: (-item["ganho_previsto"], item["esforco"], item["codigo_acao"]))
     if not alternativas:
@@ -194,6 +213,7 @@ def simular_intervencoes(
             "risco": "Nenhum problema tecnico relevante foi confirmado.", "esforco": "baixo",
             "confianca": "media", "explicacao": "A fotografia esta equilibrada para os indicadores avaliados.",
             "evidencias": ["Metricas dentro dos intervalos de referencia."],
+            "peso_aprendido": 1.0,
         })
     return deepcopy(alternativas[:limite])
 

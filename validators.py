@@ -70,12 +70,19 @@ def solicitar_validado(
     mensagem: str,
     validador: Callable[[str], object],
     permitir_cancelar: bool = False,
+    padrao: object | None = None,
 ) -> object | None:
-    """Repete uma entrada invalida sem recursao; `0` cancela quando permitido."""
+    """Repete uma entrada invalida sem recursao; `0` cancela quando permitido.
+
+    Quando ``padrao`` e informado, Enter em branco reaproveita esse valor
+    em vez de exigir nova digitacao.
+    """
     while True:
         valor = input(mensagem).strip()
         if permitir_cancelar and valor == "0":
             return None
+        if padrao is not None and valor == "":
+            return padrao
         try:
             return validador(valor)
         except ValidationError as exc:

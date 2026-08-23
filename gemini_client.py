@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from PIL import Image
 
-from config import get_gemini_api_key, get_gemini_model
+from config import GEMINI_MAX_TENTATIVAS, GEMINI_TIMEOUT_MS, get_gemini_api_key, get_gemini_model
 
 
 PROBLEMAS_PERMITIDOS = {
@@ -87,51 +88,87 @@ def _schema() -> dict:
     }
 
 
+def analisar_com_gemini_demo(caminho_imagem: str | Path, objetivo: str, intencao: str) -> dict:
+    """Cliente de demonstracao: devolve uma leitura plausivel sem chamar a API real.
+    Ativado por JOVI_DEMO_MODE, para apresentar o modo hibrido sem depender de rede ou chave."""
+    dados = validar_resposta_ia({
+        "assunto_principal": "Assunto principal em primeiro plano",
+        "tipo_cena": "ambiente interno com pouca luz",
+        "intencao_percebida": intencao or "registro pessoal",
+        "movimento_percebido": False,
+        "problemas": [
+            {"codigo": "pouca_luz", "confianca": 0.82, "evidencia_visual": "Sombras profundas cobrindo parte do assunto."},
+            {"codigo": "composicao_fraca", "confianca": 0.55, "evidencia_visual": "Assunto proximo da borda do quadro."},
+        ],
+        "composicao": {"pontuacao": 58.0, "observacao": "Enquadramento poderia centralizar melhor o assunto principal."},
+        "acoes_sugeridas": ["adicionar_iluminacao", "modo_noturno", "reposicionar_enquadramento"],
+        "incertezas": ["Resposta gerada em modo de demonstracao (JOVI_DEMO_MODE); nao reflete a foto real."],
+    })
+    return {"sucesso": True, "dados": dados, "erro": None}
+
+
+def categorizar_erro(exc: Exception) -> str:
+    """Classifica excecoes do SDK do Gemini (que variam por versao) em categorias estaveis."""
+    nome = type(exc).__name__.lower()
+    texto = str(exc).lower()
+    if "quota" in texto or "resourceexhausted" in nome or "429" in texto:
+        return "quota"
+    if "auth" in nome or "401" in texto or "403" in texto or "api key" in texto:
+        return "autenticacao"
+    if "404" in texto or "not_found" in texto or "notfound" in nome:
+        return "modelo_indisponivel"
+    if "503" in texto or "504" in texto or "unavailable" in nome or "deadline" in texto:
+        return "servidor_sobrecarregado"
+    if "timeout" in nome or "timed out" in texto:
+        return "timeout"
+    if "network" in nome or "connect" in nome:
+        return "rede"
+    return "falha_api"
+
+
+_ERROS_TRANSITORIOS = {"timeout", "servidor_sobrecarregado", "rede"}
+
+
 def analisar_com_gemini(caminho_imagem: str | Path, objetivo: str, intencao: str) -> dict:
     chave = get_gemini_api_key()
     if not chave:
         return {"sucesso": False, "dados": None, "erro": "chave_ausente"}
-    try:
-        from google import genai
-        from google.genai import types
+    from google import genai
+    from google.genai import types
 
-        cliente = genai.Client(api_key=chave, http_options=types.HttpOptions(timeout=20_000))
-        prompt = (
-            "Analise esta fotografia como tutor de fotografia. Seja conservador: descreva apenas evidencias visiveis. "
-            f"Objetivo declarado: {objetivo}. Intencao declarada: {intencao}. "
-            "Nao identifique pessoas. Diferencie problema tecnico de escolha artistica."
-        )
-        with Image.open(caminho_imagem) as imagem:
-            resposta = cliente.models.generate_content(
-                model=get_gemini_model(),
-                contents=[prompt, imagem],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_json_schema=_schema(),
-                    temperature=0.2,
-                ),
-            )
-        texto = getattr(resposta, "text", None)
-        if not texto:
-            return {"sucesso": False, "dados": None, "erro": "resposta_vazia"}
-        dados = validar_resposta_ia(json.loads(texto))
-        return {"sucesso": True, "dados": dados, "erro": None}
-    except GeminiResponseError:
-        return {"sucesso": False, "dados": None, "erro": "resposta_invalida"}
-    except json.JSONDecodeError:
-        return {"sucesso": False, "dados": None, "erro": "json_invalido"}
-    except Exception as exc:  # SDK possui varias classes de erro por versao.
-        nome = type(exc).__name__.lower()
-        texto = str(exc).lower()
-        if "quota" in texto or "resourceexhausted" in nome or "429" in texto:
-            categoria = "quota"
-        elif "auth" in nome or "401" in texto or "403" in texto or "api key" in texto:
-            categoria = "autenticacao"
-        elif "timeout" in nome or "timed out" in texto:
-            categoria = "timeout"
-        elif "network" in nome or "connect" in nome:
-            categoria = "rede"
-        else:
-            categoria = "falha_api"
-        return {"sucesso": False, "dados": None, "erro": categoria}
+    cliente = genai.Client(api_key=chave, http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS))
+    prompt = (
+        "Analise esta fotografia como tutor de fotografia. Seja conservador: descreva apenas evidencias visiveis. "
+        f"Objetivo declarado: {objetivo}. Intencao declarada: {intencao}. "
+        "Nao identifique pessoas. Diferencie problema tecnico de escolha artistica."
+    )
+    erro_final = "falha_api"
+    for _tentativa in range(GEMINI_MAX_TENTATIVAS):
+        try:
+            with Image.open(caminho_imagem) as imagem:
+                resposta = cliente.models.generate_content(
+                    model=get_gemini_model(),
+                    contents=[prompt, imagem],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_json_schema=_schema(),
+                        temperature=0.2,
+                    ),
+                )
+            texto = getattr(resposta, "text", None)
+            if not texto:
+                return {"sucesso": False, "dados": None, "erro": "resposta_vazia"}
+            dados = validar_resposta_ia(json.loads(texto))
+            return {"sucesso": True, "dados": dados, "erro": None}
+        except GeminiResponseError:
+            return {"sucesso": False, "dados": None, "erro": "resposta_invalida"}
+        except json.JSONDecodeError:
+            return {"sucesso": False, "dados": None, "erro": "json_invalido"}
+        except Exception as exc:  # SDK possui varias classes de erro por versao.
+            erro_final = categorizar_erro(exc)
+            if erro_final not in _ERROS_TRANSITORIOS:
+                break
+            if _tentativa < GEMINI_MAX_TENTATIVAS - 1:
+                time.sleep(2 * (_tentativa + 1))
+    return {"sucesso": False, "dados": None, "erro": erro_final}
 

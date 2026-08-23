@@ -17,7 +17,9 @@ MIN_IMAGE_WIDTH = 320
 MIN_IMAGE_HEIGHT = 240
 API_IMAGE_MAX_SIDE = 1600
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
+GEMINI_TIMEOUT_MS = 30_000
+GEMINI_MAX_TENTATIVAS = 2
 
 
 def ensure_directories() -> None:
@@ -54,3 +56,9 @@ def get_gemini_model() -> str:
     """Retorna o modelo configurado ou o padrao estavel do projeto."""
     value = os.getenv("GEMINI_MODEL", "").strip() or (_ler_env_local("GEMINI_MODEL") or "")
     return value or DEFAULT_GEMINI_MODEL
+
+
+def is_demo_mode() -> bool:
+    """Ativa respostas Gemini simuladas (sem rede/chave) para apresentacoes."""
+    value = os.getenv("JOVI_DEMO_MODE", "").strip().lower() or (_ler_env_local("JOVI_DEMO_MODE") or "").strip().lower()
+    return value in {"1", "true", "sim"}

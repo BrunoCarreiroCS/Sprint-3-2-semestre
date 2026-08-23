@@ -22,6 +22,12 @@ def calcular_ajuste_peso(ganho_real: float, avaliacao: int) -> float:
     return 0.0
 
 
+def calcular_fator_confianca(amostras_anteriores: int) -> float:
+    """Reduz o efeito de cada nova comparacao conforme mais evidencia se acumula
+    naquele contexto, para que poucos exemplos nao dominem o peso aprendido."""
+    return round(max(0.3, 1.0 - amostras_anteriores * 0.07), 2)
+
+
 def classificar_resultado(ganho_real: float, avaliacao: int) -> str:
     if ganho_real >= 5 and avaliacao >= 3:
         return "sucesso"
@@ -49,6 +55,8 @@ def comparar_e_aprender(
         raise ValueError("As analises devem pertencer ao usuario ativo.")
     if antes.get("eh_simulacao") or depois.get("eh_simulacao"):
         raise ValueError("Simulacoes nao podem ser usadas como recaptura.")
+    if antes["imagem_hash"] == depois["imagem_hash"]:
+        raise ValueError("A recaptura precisa ser uma foto diferente da original.")
     recomendacoes = database.listar_recomendacoes(analise_antes_id, caminho_banco)
     rec = next((item for item in recomendacoes if item["id"] == recomendacao_id), None)
     if rec is None:
@@ -74,9 +82,12 @@ def comparar_e_aprender(
             (usuario_id, contexto, rec["codigo_acao"]),
         ).fetchone()
         peso_anterior = float(atual["peso"]) if atual else 1.0
-        novo_peso = round(max(0.5, min(1.5, peso_anterior + ajuste)), 2)
-        sucesso = 1 if ajuste > 0 else 0
-        falha = 1 if ajuste < 0 else 0
+        amostras_anteriores = int(atual["sucessos"] + atual["falhas"]) if atual else 0
+        fator_confianca = calcular_fator_confianca(amostras_anteriores)
+        ajuste_aplicado = round(ajuste * fator_confianca, 4)
+        novo_peso = round(max(0.5, min(1.5, peso_anterior + ajuste_aplicado)), 2)
+        sucesso = 1 if ajuste_aplicado > 0 else 0
+        falha = 1 if ajuste_aplicado < 0 else 0
         conn.execute(
             """INSERT INTO pesos_aprendizado(usuario_id,contexto_chave,codigo_acao,peso,sucessos,falhas,atualizado_em)
             VALUES(?,?,?,?,?,?,?)
@@ -98,6 +109,8 @@ def comparar_e_aprender(
     return {
         "comparacao_id": comparacao_id, "ganho_real": ganho, "resultado": resultado,
         "peso_anterior": peso_anterior, "novo_peso": novo_peso, "ajuste": ajuste,
+        "ajuste_aplicado": ajuste_aplicado, "fator_confianca": fator_confianca,
+        "amostras_anteriores": amostras_anteriores,
         "deltas": deltas, "codigo_acao": rec["codigo_acao"],
     }
 
@@ -109,7 +122,7 @@ def resumo_evolucao(usuario_id: int, caminho_banco: str | Path = DB_PATH) -> dic
             (usuario_id,),
         ).fetchall()
         pesos = conn.execute(
-            "SELECT codigo_acao,peso,sucessos,falhas FROM pesos_aprendizado WHERE usuario_id=? ORDER BY peso DESC,sucessos DESC",
+            "SELECT codigo_acao,contexto_chave,peso,sucessos,falhas FROM pesos_aprendizado WHERE usuario_id=? ORDER BY peso DESC,sucessos DESC",
             (usuario_id,),
         ).fetchall()
         analises = conn.execute(
@@ -119,11 +132,13 @@ def resumo_evolucao(usuario_id: int, caminho_banco: str | Path = DB_PATH) -> dic
     ganhos = [float(item["ganho_real"]) for item in comparacoes]
     media = round(sum(ganhos) / len(ganhos), 2) if ganhos else 0.0
     melhor = dict(pesos[0]) if pesos else None
+    principais_pesos = [dict(item) for item in pesos[:3]]
     inicial = float(analises[0]["pontuacao_geral"]) if analises else 0.0
     recente = float(analises[-1]["pontuacao_geral"]) if analises else 0.0
     return {
         "total_analises": len(analises), "total_comparacoes": len(comparacoes),
         "ganho_medio": media, "evolucao_pontuacao": round(recente - inicial, 2) if len(analises) > 1 else 0.0,
-        "melhor_acao": melhor, "sucessos": sum(1 for item in comparacoes if item["resultado"] == "sucesso"),
+        "melhor_acao": melhor, "principais_pesos": principais_pesos,
+        "sucessos": sum(1 for item in comparacoes if item["resultado"] == "sucesso"),
     }
 

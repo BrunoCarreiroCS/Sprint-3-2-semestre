@@ -33,12 +33,19 @@ def _numero_exif(valor: object) -> float | None:
 
 
 def _extrair_exif_seguro(imagem: Image.Image) -> dict:
+    """Le ISO, tempo de exposicao e distancia focal, que ficam no Exif Sub-IFD
+    (tag 0x8769) e nao no IFD0 devolvido diretamente por ``Image.getexif()``."""
     exif = imagem.getexif()
+    combinado = dict(exif)
+    try:
+        combinado.update(exif.get_ifd(0x8769))
+    except (KeyError, AttributeError, ValueError, TypeError):
+        pass
     dados: dict[str, float | int] = {}
     mapa = {34855: "iso", 33434: "tempo_exposicao", 37386: "distancia_focal"}
     for codigo, nome in mapa.items():
-        if codigo in exif:
-            valor = _numero_exif(exif.get(codigo))
+        if codigo in combinado:
+            valor = _numero_exif(combinado.get(codigo))
             if valor is not None:
                 dados[nome] = valor
     return dados
