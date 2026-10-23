@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import database
-from config import DB_PATH, OUTPUT_DIR
+from config import DADOS_DIR, OUTPUT_DIR
 from learning_engine import resumo_evolucao
 from recommendation_engine import formatar_contexto
 
@@ -73,14 +73,14 @@ DIMENSOES_PLAIN = {
 }
 
 
-def _classificar_pontuacao(pontuacao: float) -> str:
+def classificar_pontuacao(pontuacao: float) -> str:
     for limite, texto in FAIXAS_PONTUACAO:
         if pontuacao >= limite:
             return texto
     return FAIXAS_PONTUACAO[-1][1]
 
 
-def _pontos_fortes_e_fracos(dimensoes: dict) -> tuple[list[str], list[str]]:
+def pontos_fortes_e_fracos(dimensoes: dict) -> tuple[list[str], list[str]]:
     fortes, fracos = [], []
     for chave, valor in dimensoes.items():
         textos = DIMENSOES_PLAIN.get(chave)
@@ -104,12 +104,12 @@ def _classificar_ganho(ganho: float) -> str:
 def formatar_resumo_analise(resultado: dict) -> str:
     """Versao curta e em linguagem simples do diagnostico, mostrada por padrao."""
     pontuacao = resultado["pontuacao_geral"]
-    fortes, fracos = _pontos_fortes_e_fracos(resultado["dimensoes"])
+    fortes, fracos = pontos_fortes_e_fracos(resultado["dimensoes"])
     linhas = [
         "\n" + "=" * 64,
         "RESULTADO DA SUA FOTO",
         "=" * 64,
-        f"Nota geral: {pontuacao:.0f}/100  [{_barra(pontuacao)}]  - {_classificar_pontuacao(pontuacao)}",
+        f"Nota geral: {pontuacao:.0f}/100  [{_barra(pontuacao)}]  - {classificar_pontuacao(pontuacao)}",
     ]
     if fortes:
         linhas.append("\nO que esta bom:")
@@ -216,8 +216,8 @@ def formatar_comparacao(resultado: dict) -> str:
     return "\n".join(linhas)
 
 
-def formatar_evolucao(usuario_id: int, caminho_banco: str | Path = DB_PATH) -> str:
-    resumo = resumo_evolucao(usuario_id, caminho_banco)
+def formatar_evolucao(usuario_id: int, pasta_dados: str | Path = DADOS_DIR) -> str:
+    resumo = resumo_evolucao(usuario_id, pasta_dados)
     linhas = [
         "\n" + "=" * 64, "EVOLUCAO FOTOGRAFICA", "=" * 64,
         f"Analises realizadas: {resumo['total_analises']}",
@@ -238,12 +238,12 @@ def formatar_evolucao(usuario_id: int, caminho_banco: str | Path = DB_PATH) -> s
     return "\n".join(linhas)
 
 
-def exportar_resumo(usuario_id: int, caminho_banco: str | Path = DB_PATH) -> Path:
-    usuario = database.buscar_usuario(usuario_id, caminho_banco)
+def exportar_resumo(usuario_id: int, pasta_dados: str | Path = DADOS_DIR) -> Path:
+    usuario = database.buscar_usuario(usuario_id, pasta_dados)
     if not usuario:
         raise ValueError("Usuario nao encontrado.")
-    analises = database.listar_analises(usuario_id, caminho_banco)
-    resumo = resumo_evolucao(usuario_id, caminho_banco)
+    analises = database.listar_analises(usuario_id, pasta_dados)
+    resumo = resumo_evolucao(usuario_id, pasta_dados)
     payload = {
         "perfil": {"apelido": usuario["apelido"], "nivel": usuario["nivel"], "estilo": usuario["estilo_preferido"]},
         "resumo": resumo,

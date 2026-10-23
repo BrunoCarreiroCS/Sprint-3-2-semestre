@@ -40,41 +40,41 @@ REC = {
 class DatabaseAndLearningTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.db = Path(self.temp.name) / "teste.db"
-        database.inicializar_banco(self.db)
-        self.ana = database.criar_usuario("Ana", "iniciante", "natural", False, self.db)
-        self.bia = database.criar_usuario("Bia", "avancado", "vibrante", True, self.db)
+        self.dados = Path(self.temp.name) / "dados"
+        database.inicializar_armazenamento(self.dados)
+        self.ana = database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
+        self.bia = database.criar_usuario("Bia", "avancado", "vibrante", True, self.dados)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
 
     def test_historico_fica_isolado_por_usuario(self) -> None:
-        database.salvar_analise_com_recomendacoes(analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db)
-        self.assertEqual(len(database.listar_analises(self.ana["id"], self.db)), 1)
-        self.assertEqual(database.listar_analises(self.bia["id"], self.db), [])
+        database.salvar_analise_com_recomendacoes(analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados)
+        self.assertEqual(len(database.listar_analises(self.ana["id"], self.dados)), 1)
+        self.assertEqual(database.listar_analises(self.bia["id"], self.dados), [])
 
     def test_exclusao_em_cascata_remove_dados_do_perfil(self) -> None:
-        database.salvar_analise_com_recomendacoes(analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db)
-        database.excluir_usuario(self.ana["id"], self.db)
-        self.assertIsNone(database.buscar_usuario(self.ana["id"], self.db))
-        self.assertEqual(database.listar_analises(self.ana["id"], self.db), [])
+        database.salvar_analise_com_recomendacoes(analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados)
+        database.excluir_usuario(self.ana["id"], self.dados)
+        self.assertIsNone(database.buscar_usuario(self.ana["id"], self.dados))
+        self.assertEqual(database.listar_analises(self.ana["id"], self.dados), [])
 
     def test_comparacao_aprende_so_no_contexto_e_usuario_corretos(self) -> None:
         antes_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados
         )
         depois_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "b" * 64, 55), [REC], self.db
+            analise_base(self.ana["id"], "b" * 64, 55), [REC], self.dados
         )
-        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
-        resultado = comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "ajudou", self.db)
+        rec_id = database.listar_recomendacoes(antes_id, self.dados)[0]["id"]
+        resultado = comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "ajudou", self.dados)
         self.assertEqual(resultado["resultado"], "sucesso")
         self.assertEqual(resultado["novo_peso"], 1.1)
         pesos_ana = database.obter_pesos(
-            self.ana["id"], "retrato|escuro|estatico|iniciante|natural", self.db
+            self.ana["id"], "retrato|escuro|estatico|iniciante|natural", self.dados
         )
         pesos_bia = database.obter_pesos(
-            self.bia["id"], "retrato|escuro|estatico|iniciante|natural", self.db
+            self.bia["id"], "retrato|escuro|estatico|iniciante|natural", self.dados
         )
         self.assertEqual(pesos_ana["adicionar_iluminacao"], 1.1)
         self.assertEqual(pesos_bia, {})
@@ -85,14 +85,14 @@ class DatabaseAndLearningTest(unittest.TestCase):
 
     def test_recaptura_identica_a_original_e_recusada(self) -> None:
         antes_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados
         )
         depois_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "a" * 64, 55), [REC], self.db
+            analise_base(self.ana["id"], "a" * 64, 55), [REC], self.dados
         )
-        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
+        rec_id = database.listar_recomendacoes(antes_id, self.dados)[0]["id"]
         with self.assertRaises(ValueError):
-            comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.db)
+            comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.dados)
 
     def test_fator_confianca_diminui_com_mais_amostras(self) -> None:
         self.assertEqual(calcular_fator_confianca(0), 1.0)
@@ -100,16 +100,16 @@ class DatabaseAndLearningTest(unittest.TestCase):
         self.assertEqual(calcular_fator_confianca(100), 0.3)
 
     def test_nenhuma_pendente_quando_nada_foi_marcado(self) -> None:
-        database.salvar_analise_com_recomendacoes(analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db)
-        self.assertIsNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
+        database.salvar_analise_com_recomendacoes(analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados)
+        self.assertIsNone(database.buscar_recomendacao_pendente(self.ana["id"], self.dados))
 
     def test_pendente_retorna_recomendacao_marcada_mais_recente(self) -> None:
         antes_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados
         )
-        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
-        database.marcar_recomendacao(rec_id, antes_id, self.db)
-        pendente = database.buscar_recomendacao_pendente(self.ana["id"], self.db)
+        rec_id = database.listar_recomendacoes(antes_id, self.dados)[0]["id"]
+        database.marcar_recomendacao(rec_id, antes_id, self.dados)
+        pendente = database.buscar_recomendacao_pendente(self.ana["id"], self.dados)
         self.assertIsNotNone(pendente)
         self.assertEqual(pendente["id"], rec_id)
         self.assertEqual(pendente["analise_id"], antes_id)
@@ -117,37 +117,37 @@ class DatabaseAndLearningTest(unittest.TestCase):
 
     def test_pendente_some_apos_comparacao_registrada(self) -> None:
         antes_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados
         )
         depois_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "b" * 64, 55), [REC], self.db
+            analise_base(self.ana["id"], "b" * 64, 55), [REC], self.dados
         )
-        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
-        database.marcar_recomendacao(rec_id, antes_id, self.db)
-        self.assertIsNotNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
-        comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.db)
-        self.assertIsNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
+        rec_id = database.listar_recomendacoes(antes_id, self.dados)[0]["id"]
+        database.marcar_recomendacao(rec_id, antes_id, self.dados)
+        self.assertIsNotNone(database.buscar_recomendacao_pendente(self.ana["id"], self.dados))
+        comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.dados)
+        self.assertIsNone(database.buscar_recomendacao_pendente(self.ana["id"], self.dados))
 
     def test_pendente_isolada_por_usuario(self) -> None:
         antes_id = database.salvar_analise_com_recomendacoes(
-            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.db
+            analise_base(self.ana["id"], "a" * 64, 40), [REC], self.dados
         )
-        rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
-        database.marcar_recomendacao(rec_id, antes_id, self.db)
-        self.assertIsNotNone(database.buscar_recomendacao_pendente(self.ana["id"], self.db))
-        self.assertIsNone(database.buscar_recomendacao_pendente(self.bia["id"], self.db))
+        rec_id = database.listar_recomendacoes(antes_id, self.dados)[0]["id"]
+        database.marcar_recomendacao(rec_id, antes_id, self.dados)
+        self.assertIsNotNone(database.buscar_recomendacao_pendente(self.ana["id"], self.dados))
+        self.assertIsNone(database.buscar_recomendacao_pendente(self.bia["id"], self.dados))
 
     def test_ajuste_encolhe_conforme_historico_cresce_no_mesmo_contexto(self) -> None:
         primeiro_ajuste = None
         for indice in range(3):
             antes_id = database.salvar_analise_com_recomendacoes(
-                analise_base(self.ana["id"], f"{indice}a".rjust(64, "0"), 40), [REC], self.db
+                analise_base(self.ana["id"], f"{indice}a".rjust(64, "0"), 40), [REC], self.dados
             )
             depois_id = database.salvar_analise_com_recomendacoes(
-                analise_base(self.ana["id"], f"{indice}b".rjust(64, "0"), 60), [REC], self.db
+                analise_base(self.ana["id"], f"{indice}b".rjust(64, "0"), 60), [REC], self.dados
             )
-            rec_id = database.listar_recomendacoes(antes_id, self.db)[0]["id"]
-            resultado = comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.db)
+            rec_id = database.listar_recomendacoes(antes_id, self.dados)[0]["id"]
+            resultado = comparar_e_aprender(self.ana["id"], antes_id, depois_id, rec_id, 5, "", self.dados)
             if indice == 0:
                 primeiro_ajuste = resultado["ajuste_aplicado"]
             else:

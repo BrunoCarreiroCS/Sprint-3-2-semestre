@@ -1,128 +1,145 @@
-"""Persistencia SQLite com isolamento por usuario."""
+"""Persistencia em arquivos JSON com isolamento por usuario.
+
+Estrutura gravada em ``pasta`` (por padrao, ``data/``):
+
+- ``usuarios.json``: lista de perfis e contadores de identificadores.
+- ``perfis/perfil_<id>.json``: analises, recomendacoes, comparacoes e pesos
+  de um unico perfil. Excluir um perfil apaga apenas o arquivo dele.
+
+Cada gravacao escreve primeiro em um arquivo temporario e so depois o move
+para o lugar definitivo, para que uma falha no meio nao corrompa os dados.
+"""
 
 from __future__ import annotations
 
+import copy
 import json
-import sqlite3
-from contextlib import contextmanager
+import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Sequence
 
-from config import DB_PATH, ensure_directories
+from config import DADOS_DIR, VERSAO_ARMAZENAMENTO
+
+NIVEIS_VALIDOS = {"iniciante", "intermediario", "avancado"}
+ESTILOS_VALIDOS = {"natural", "equilibrado", "vibrante"}
+MODOS_VALIDOS = {"hibrido", "offline"}
+RESULTADOS_VALIDOS = {"sucesso", "misto", "falha", "inconclusivo"}
+
+CAMPOS_RESUMO_ANALISE = ("id", "nome_arquivo", "objetivo", "intencao", "modo_execucao", "pontuacao_geral", "criado_em")
+
+INDICE_VAZIO = {
+    "versao": VERSAO_ARMAZENAMENTO,
+    "proximo_id": {"usuario": 1, "analise": 1, "recomendacao": 1, "comparacao": 1},
+    "usuarios": [],
+}
 
 
-class ClosingConnection(sqlite3.Connection):
-    """Conexao que tambem fecha o arquivo ao sair de um bloco ``with``."""
+class ArmazenamentoError(ValueError):
+    """Arquivo de dados ilegivel, corrompido ou com formato inesperado."""
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        resultado = super().__exit__(exc_type, exc_value, traceback)
-        self.close()
-        return resultado
+
+class RegistroDuplicadoError(ValueError):
+    """Tentativa de gravar um registro que precisa ser unico."""
 
 
 def agora_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def conectar(caminho: str | Path = DB_PATH) -> sqlite3.Connection:
-    ensure_directories()
-    conn = sqlite3.connect(str(caminho), factory=ClosingConnection)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+# ---------------------------------------------------------------- arquivos
+
+def _arquivo_indice(pasta: str | Path) -> Path:
+    return Path(pasta) / "usuarios.json"
 
 
-@contextmanager
-def transacao(caminho: str | Path = DB_PATH) -> Iterator[sqlite3.Connection]:
-    conn = conectar(caminho)
+def _arquivo_perfil(pasta: str | Path, usuario_id: int) -> Path:
+    return Path(pasta) / "perfis" / f"perfil_{int(usuario_id)}.json"
+
+
+def _perfil_vazio(usuario_id: int) -> dict:
+    return {
+        "versao": VERSAO_ARMAZENAMENTO, "usuario_id": int(usuario_id),
+        "analises": [], "recomendacoes": [], "comparacoes": [], "pesos_aprendizado": [],
+    }
+
+
+def _ler_json(arquivo: Path, padrao: dict) -> dict:
+    if not arquivo.exists():
+        return copy.deepcopy(padrao)
     try:
-        with conn:
-            yield conn
-    finally:
-        conn.close()
+        with open(arquivo, encoding="utf-8") as stream:
+            dados = json.load(stream)
+    except json.JSONDecodeError as exc:
+        raise ArmazenamentoError(
+            f"O arquivo de dados {arquivo.name} esta corrompido (linha {exc.lineno}). "
+            "Restaure uma copia ou apague-o para recomecar."
+        ) from exc
+    except OSError as exc:
+        raise ArmazenamentoError(f"Nao foi possivel ler {arquivo.name}: {exc.strerror}.") from exc
+    if not isinstance(dados, dict):
+        raise ArmazenamentoError(f"O arquivo {arquivo.name} nao tem o formato esperado.")
+    for chave, valor in padrao.items():
+        dados.setdefault(chave, copy.deepcopy(valor))
+    return dados
 
 
-def inicializar_banco(caminho: str | Path = DB_PATH) -> None:
-    schema = """
-    CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        apelido TEXT NOT NULL COLLATE NOCASE UNIQUE,
-        nivel TEXT NOT NULL CHECK (nivel IN ('iniciante','intermediario','avancado')),
-        estilo_preferido TEXT NOT NULL CHECK (estilo_preferido IN ('natural','equilibrado','vibrante')),
-        consentimento_api INTEGER NOT NULL DEFAULT 0 CHECK (consentimento_api IN (0,1)),
-        criado_em TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS analises (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-        imagem_hash TEXT NOT NULL,
-        nome_arquivo TEXT NOT NULL,
-        objetivo TEXT NOT NULL,
-        intencao TEXT NOT NULL,
-        estilo TEXT NOT NULL,
-        modo_execucao TEXT NOT NULL CHECK (modo_execucao IN ('hibrido','offline')),
-        metricas_json TEXT NOT NULL,
-        analise_ia_json TEXT,
-        pontuacao_geral REAL NOT NULL CHECK (pontuacao_geral BETWEEN 0 AND 100),
-        eh_simulacao INTEGER NOT NULL DEFAULT 0 CHECK (eh_simulacao IN (0,1)),
-        criado_em TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS recomendacoes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        analise_id INTEGER NOT NULL REFERENCES analises(id) ON DELETE CASCADE,
-        codigo_acao TEXT NOT NULL,
-        posicao_ranking INTEGER NOT NULL,
-        ganho_previsto REAL NOT NULL,
-        risco TEXT NOT NULL,
-        esforco TEXT NOT NULL,
-        confianca TEXT NOT NULL,
-        explicacao TEXT NOT NULL,
-        evidencias_json TEXT NOT NULL,
-        peso_aprendido REAL NOT NULL DEFAULT 1.0,
-        selecionada INTEGER NOT NULL DEFAULT 0 CHECK (selecionada IN (0,1)),
-        marcado_em TEXT,
-        UNIQUE (analise_id, posicao_ranking)
-    );
-    CREATE TABLE IF NOT EXISTS comparacoes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-        analise_antes_id INTEGER NOT NULL REFERENCES analises(id) ON DELETE CASCADE,
-        analise_depois_id INTEGER NOT NULL REFERENCES analises(id) ON DELETE CASCADE,
-        recomendacao_id INTEGER NOT NULL REFERENCES recomendacoes(id) ON DELETE CASCADE,
-        ganho_real REAL NOT NULL,
-        resultado TEXT NOT NULL CHECK (resultado IN ('sucesso','misto','falha','inconclusivo')),
-        avaliacao INTEGER NOT NULL CHECK (avaliacao BETWEEN 1 AND 5),
-        comentario TEXT,
-        peso_aplicado INTEGER NOT NULL DEFAULT 0 CHECK (peso_aplicado IN (0,1)),
-        criado_em TEXT NOT NULL,
-        UNIQUE (analise_antes_id, analise_depois_id, recomendacao_id)
-    );
-    CREATE TABLE IF NOT EXISTS pesos_aprendizado (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-        contexto_chave TEXT NOT NULL,
-        codigo_acao TEXT NOT NULL,
-        peso REAL NOT NULL DEFAULT 1.0 CHECK (peso BETWEEN 0.5 AND 1.5),
-        sucessos INTEGER NOT NULL DEFAULT 0,
-        falhas INTEGER NOT NULL DEFAULT 0,
-        atualizado_em TEXT NOT NULL,
-        UNIQUE (usuario_id, contexto_chave, codigo_acao)
-    );
-    CREATE INDEX IF NOT EXISTS idx_analises_usuario ON analises(usuario_id, criado_em DESC);
-    CREATE INDEX IF NOT EXISTS idx_comparacoes_usuario ON comparacoes(usuario_id, criado_em DESC);
-    """
-    with transacao(caminho) as conn:
-        conn.executescript(schema)
-        colunas = {row["name"] for row in conn.execute("PRAGMA table_info(recomendacoes)")}
-        if "peso_aprendido" not in colunas:
-            conn.execute("ALTER TABLE recomendacoes ADD COLUMN peso_aprendido REAL NOT NULL DEFAULT 1.0")
-        if "marcado_em" not in colunas:
-            conn.execute("ALTER TABLE recomendacoes ADD COLUMN marcado_em TEXT")
+def _gravar_json(arquivo: Path, dados: dict) -> None:
+    arquivo.parent.mkdir(parents=True, exist_ok=True)
+    temporario = arquivo.with_name(arquivo.name + ".tmp")
+    try:
+        with open(temporario, "w", encoding="utf-8") as stream:
+            json.dump(dados, stream, ensure_ascii=False, indent=2)
+        os.replace(temporario, arquivo)
+    except OSError as exc:
+        if temporario.exists():
+            temporario.unlink()
+        raise ArmazenamentoError(f"Nao foi possivel gravar {arquivo.name}: {exc.strerror}.") from exc
 
 
-def _row_dict(row: sqlite3.Row | None) -> dict | None:
-    return dict(row) if row is not None else None
+def _ler_indice(pasta: str | Path) -> dict:
+    indice = _ler_json(_arquivo_indice(pasta), INDICE_VAZIO)
+    for nome, valor in INDICE_VAZIO["proximo_id"].items():
+        indice["proximo_id"].setdefault(nome, valor)
+    return indice
+
+
+def _ler_perfil(pasta: str | Path, usuario_id: int) -> dict:
+    return _ler_json(_arquivo_perfil(pasta, usuario_id), _perfil_vazio(usuario_id))
+
+
+def _reservar_ids(pasta: str | Path, tipo: str, quantidade: int = 1) -> list[int]:
+    """Reserva identificadores unicos em todo o armazenamento."""
+    indice = _ler_indice(pasta)
+    inicio = int(indice["proximo_id"][tipo])
+    indice["proximo_id"][tipo] = inicio + quantidade
+    _gravar_json(_arquivo_indice(pasta), indice)
+    return list(range(inicio, inicio + quantidade))
+
+
+def _ids_usuarios(pasta: str | Path) -> list[int]:
+    return [int(usuario["id"]) for usuario in _ler_indice(pasta)["usuarios"]]
+
+
+def _localizar_analise(pasta: str | Path, analise_id: int) -> tuple[dict, dict] | None:
+    """Encontra o perfil dono de uma analise; devolve (perfil, analise)."""
+    for usuario_id in _ids_usuarios(pasta):
+        perfil = _ler_perfil(pasta, usuario_id)
+        for analise in perfil["analises"]:
+            if analise["id"] == analise_id:
+                return perfil, analise
+    return None
+
+
+# ---------------------------------------------------------------- perfis
+
+def inicializar_armazenamento(pasta: str | Path = DADOS_DIR) -> None:
+    """Cria a estrutura de pastas e valida o indice existente."""
+    Path(pasta, "perfis").mkdir(parents=True, exist_ok=True)
+    if not _arquivo_indice(pasta).exists():
+        _gravar_json(_arquivo_indice(pasta), copy.deepcopy(INDICE_VAZIO))
+    else:
+        _ler_indice(pasta)
 
 
 def criar_usuario(
@@ -130,151 +147,229 @@ def criar_usuario(
     nivel: str,
     estilo: str,
     consentimento_api: bool,
-    caminho: str | Path = DB_PATH,
+    pasta: str | Path = DADOS_DIR,
 ) -> dict:
-    with transacao(caminho) as conn:
-        cursor = conn.execute(
-            "INSERT INTO usuarios(apelido,nivel,estilo_preferido,consentimento_api,criado_em) VALUES(?,?,?,?,?)",
-            (apelido, nivel, estilo, int(consentimento_api), agora_iso()),
-        )
-        row = conn.execute("SELECT * FROM usuarios WHERE id = ?", (cursor.lastrowid,)).fetchone()
-    return dict(row)
+    apelido = str(apelido).strip()
+    if nivel not in NIVEIS_VALIDOS or estilo not in ESTILOS_VALIDOS:
+        raise ValueError("Nivel ou estilo invalido.")
+    indice = _ler_indice(pasta)
+    if any(item["apelido"].casefold() == apelido.casefold() for item in indice["usuarios"]):
+        raise RegistroDuplicadoError(f"O apelido '{apelido}' ja esta em uso.")
+    usuario = {
+        "id": int(indice["proximo_id"]["usuario"]), "apelido": apelido, "nivel": nivel,
+        "estilo_preferido": estilo, "consentimento_api": bool(consentimento_api), "criado_em": agora_iso(),
+    }
+    indice["proximo_id"]["usuario"] = usuario["id"] + 1
+    indice["usuarios"].append(usuario)
+    _gravar_json(_arquivo_perfil(pasta, usuario["id"]), _perfil_vazio(usuario["id"]))
+    _gravar_json(_arquivo_indice(pasta), indice)
+    return dict(usuario)
 
 
-def listar_usuarios(caminho: str | Path = DB_PATH) -> list[dict]:
-    with conectar(caminho) as conn:
-        return [dict(row) for row in conn.execute("SELECT * FROM usuarios ORDER BY apelido")]
+def listar_usuarios(pasta: str | Path = DADOS_DIR) -> list[dict]:
+    usuarios = _ler_indice(pasta)["usuarios"]
+    return [dict(item) for item in sorted(usuarios, key=lambda item: item["apelido"].casefold())]
 
 
-def buscar_usuario(usuario_id: int, caminho: str | Path = DB_PATH) -> dict | None:
-    with conectar(caminho) as conn:
-        return _row_dict(conn.execute("SELECT * FROM usuarios WHERE id = ?", (usuario_id,)).fetchone())
+def buscar_usuario(usuario_id: int, pasta: str | Path = DADOS_DIR) -> dict | None:
+    return next((dict(item) for item in _ler_indice(pasta)["usuarios"] if item["id"] == usuario_id), None)
 
 
-def atualizar_consentimento(usuario_id: int, consentimento: bool, caminho: str | Path = DB_PATH) -> None:
-    with transacao(caminho) as conn:
-        cursor = conn.execute(
-            "UPDATE usuarios SET consentimento_api = ? WHERE id = ?",
-            (int(consentimento), usuario_id),
-        )
-        if cursor.rowcount != 1:
-            raise ValueError("Usuario nao encontrado.")
+def buscar_usuario_por_apelido(apelido: str, pasta: str | Path = DADOS_DIR) -> dict | None:
+    alvo = str(apelido).strip().casefold()
+    return next((dict(item) for item in _ler_indice(pasta)["usuarios"] if item["apelido"].casefold() == alvo), None)
 
+
+def atualizar_consentimento(usuario_id: int, consentimento: bool, pasta: str | Path = DADOS_DIR) -> None:
+    indice = _ler_indice(pasta)
+    usuario = next((item for item in indice["usuarios"] if item["id"] == usuario_id), None)
+    if usuario is None:
+        raise ValueError("Usuario nao encontrado.")
+    usuario["consentimento_api"] = bool(consentimento)
+    _gravar_json(_arquivo_indice(pasta), indice)
+
+
+def excluir_usuario(usuario_id: int, pasta: str | Path = DADOS_DIR) -> None:
+    """Remove o perfil e todo o historico dele (o arquivo inteiro do perfil)."""
+    indice = _ler_indice(pasta)
+    restantes = [item for item in indice["usuarios"] if item["id"] != usuario_id]
+    if len(restantes) == len(indice["usuarios"]):
+        raise ValueError("Usuario nao encontrado.")
+    indice["usuarios"] = restantes
+    _gravar_json(_arquivo_indice(pasta), indice)
+    arquivo = _arquivo_perfil(pasta, usuario_id)
+    if arquivo.exists():
+        arquivo.unlink()
+
+
+# ---------------------------------------------------------------- analises
 
 def salvar_analise_com_recomendacoes(
     analise: dict,
     recomendacoes: Sequence[dict],
-    caminho: str | Path = DB_PATH,
+    pasta: str | Path = DADOS_DIR,
 ) -> int:
-    with transacao(caminho) as conn:
-        cursor = conn.execute(
-            """INSERT INTO analises(
-                usuario_id,imagem_hash,nome_arquivo,objetivo,intencao,estilo,modo_execucao,
-                metricas_json,analise_ia_json,pontuacao_geral,eh_simulacao,criado_em
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                analise["usuario_id"], analise["imagem_hash"], Path(analise["nome_arquivo"]).name,
-                analise["objetivo"], analise["intencao"], analise["estilo"], analise["modo_execucao"],
-                json.dumps(analise["metricas"], ensure_ascii=False),
-                json.dumps(analise.get("analise_ia"), ensure_ascii=False) if analise.get("analise_ia") else None,
-                float(analise["pontuacao_geral"]), int(analise.get("eh_simulacao", False)), agora_iso(),
-            ),
-        )
-        analise_id = int(cursor.lastrowid)
-        for posicao, rec in enumerate(recomendacoes, start=1):
-            conn.execute(
-                """INSERT INTO recomendacoes(
-                    analise_id,codigo_acao,posicao_ranking,ganho_previsto,risco,esforco,
-                    confianca,explicacao,evidencias_json,peso_aprendido
-                ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    analise_id, rec["codigo_acao"], posicao, float(rec["ganho_previsto"]),
-                    rec["risco"], rec["esforco"], rec["confianca"], rec["explicacao"],
-                    json.dumps(rec.get("evidencias", []), ensure_ascii=False),
-                    float(rec.get("peso_aprendido", 1.0)),
-                ),
-            )
+    usuario_id = int(analise["usuario_id"])
+    if buscar_usuario(usuario_id, pasta) is None:
+        raise ValueError("Usuario nao encontrado.")
+    pontuacao = float(analise["pontuacao_geral"])
+    if not 0 <= pontuacao <= 100:
+        raise ValueError("Pontuacao geral fora do intervalo 0-100.")
+    if analise["modo_execucao"] not in MODOS_VALIDOS:
+        raise ValueError("Modo de execucao invalido.")
+
+    perfil = _ler_perfil(pasta, usuario_id)
+    analise_id = _reservar_ids(pasta, "analise")[0]
+    ids_recomendacoes = _reservar_ids(pasta, "recomendacao", len(recomendacoes)) if recomendacoes else []
+    perfil["analises"].append({
+        "id": analise_id, "usuario_id": usuario_id, "imagem_hash": analise["imagem_hash"],
+        "nome_arquivo": Path(analise["nome_arquivo"]).name, "objetivo": analise["objetivo"],
+        "intencao": analise["intencao"], "estilo": analise["estilo"],
+        "modo_execucao": analise["modo_execucao"], "metricas": analise["metricas"],
+        "analise_ia": analise.get("analise_ia") or None, "pontuacao_geral": pontuacao,
+        "eh_simulacao": bool(analise.get("eh_simulacao", False)), "criado_em": agora_iso(),
+    })
+    for posicao, (rec_id, rec) in enumerate(zip(ids_recomendacoes, recomendacoes), start=1):
+        perfil["recomendacoes"].append({
+            "id": rec_id, "analise_id": analise_id, "codigo_acao": rec["codigo_acao"],
+            "posicao_ranking": posicao, "ganho_previsto": float(rec["ganho_previsto"]),
+            "risco": rec["risco"], "esforco": rec["esforco"], "confianca": rec["confianca"],
+            "explicacao": rec["explicacao"], "evidencias": list(rec.get("evidencias", [])),
+            "peso_aprendido": float(rec.get("peso_aprendido", 1.0)),
+            "selecionada": False, "marcado_em": None,
+        })
+    _gravar_json(_arquivo_perfil(pasta, usuario_id), perfil)
     return analise_id
 
 
-def buscar_analise(analise_id: int, caminho: str | Path = DB_PATH) -> dict | None:
-    with conectar(caminho) as conn:
-        row = conn.execute("SELECT * FROM analises WHERE id = ?", (analise_id,)).fetchone()
-    if row is None:
-        return None
-    result = dict(row)
-    result["metricas"] = json.loads(result.pop("metricas_json"))
-    raw_ia = result.pop("analise_ia_json")
-    result["analise_ia"] = json.loads(raw_ia) if raw_ia else None
-    return result
+def buscar_analise(analise_id: int, pasta: str | Path = DADOS_DIR) -> dict | None:
+    encontrado = _localizar_analise(pasta, analise_id)
+    return copy.deepcopy(encontrado[1]) if encontrado else None
 
 
-def listar_analises(usuario_id: int, caminho: str | Path = DB_PATH) -> list[dict]:
-    with conectar(caminho) as conn:
-        rows = conn.execute(
-            "SELECT id,nome_arquivo,objetivo,intencao,modo_execucao,pontuacao_geral,criado_em FROM analises WHERE usuario_id = ? ORDER BY id DESC",
-            (usuario_id,),
-        ).fetchall()
-    return [dict(row) for row in rows]
+def listar_analises(usuario_id: int, pasta: str | Path = DADOS_DIR) -> list[dict]:
+    """Resumo das analises do perfil, da mais recente para a mais antiga."""
+    analises = _ler_perfil(pasta, usuario_id)["analises"]
+    resumo = [{campo: item.get(campo) for campo in CAMPOS_RESUMO_ANALISE} for item in analises]
+    return sorted(resumo, key=lambda item: item["id"], reverse=True)
 
 
-def listar_recomendacoes(analise_id: int, caminho: str | Path = DB_PATH) -> list[dict]:
-    with conectar(caminho) as conn:
-        rows = conn.execute(
-            "SELECT * FROM recomendacoes WHERE analise_id = ? ORDER BY posicao_ranking",
-            (analise_id,),
-        ).fetchall()
-    result = []
-    for row in rows:
-        item = dict(row)
-        item["evidencias"] = json.loads(item.pop("evidencias_json"))
-        result.append(item)
-    return result
+def listar_recomendacoes(analise_id: int, pasta: str | Path = DADOS_DIR) -> list[dict]:
+    encontrado = _localizar_analise(pasta, analise_id)
+    if not encontrado:
+        return []
+    perfil = encontrado[0]
+    recomendacoes = [copy.deepcopy(item) for item in perfil["recomendacoes"] if item["analise_id"] == analise_id]
+    return sorted(recomendacoes, key=lambda item: item["posicao_ranking"])
 
 
-def marcar_recomendacao(recomendacao_id: int, analise_id: int, caminho: str | Path = DB_PATH) -> None:
-    with transacao(caminho) as conn:
-        conn.execute("UPDATE recomendacoes SET selecionada = 0 WHERE analise_id = ?", (analise_id,))
-        cursor = conn.execute(
-            "UPDATE recomendacoes SET selecionada = 1, marcado_em = ? WHERE id = ? AND analise_id = ?",
-            (agora_iso(), recomendacao_id, analise_id),
-        )
-        if cursor.rowcount != 1:
-            raise ValueError("Recomendacao nao encontrada para esta analise.")
+def marcar_recomendacao(recomendacao_id: int, analise_id: int, pasta: str | Path = DADOS_DIR) -> None:
+    encontrado = _localizar_analise(pasta, analise_id)
+    if not encontrado:
+        raise ValueError("Recomendacao nao encontrada para esta analise.")
+    perfil = encontrado[0]
+    da_analise = [item for item in perfil["recomendacoes"] if item["analise_id"] == analise_id]
+    alvo = next((item for item in da_analise if item["id"] == recomendacao_id), None)
+    if alvo is None:
+        raise ValueError("Recomendacao nao encontrada para esta analise.")
+    for item in da_analise:
+        item["selecionada"] = False
+    alvo["selecionada"] = True
+    alvo["marcado_em"] = agora_iso()
+    _gravar_json(_arquivo_perfil(pasta, perfil["usuario_id"]), perfil)
 
 
-def buscar_recomendacao_pendente(usuario_id: int, caminho: str | Path = DB_PATH) -> dict | None:
+def buscar_recomendacao_pendente(usuario_id: int, pasta: str | Path = DADOS_DIR) -> dict | None:
     """Recomendacao marcada mais recentemente que ainda nao tem uma recaptura comparada."""
-    with conectar(caminho) as conn:
-        row = conn.execute(
-            """SELECT r.*, a.nome_arquivo, a.objetivo, a.intencao, a.estilo, a.imagem_hash
-            FROM recomendacoes r
-            JOIN analises a ON a.id = r.analise_id
-            WHERE a.usuario_id = ?
-              AND r.marcado_em IS NOT NULL
-              AND NOT EXISTS (SELECT 1 FROM comparacoes c WHERE c.recomendacao_id = r.id)
-            ORDER BY r.marcado_em DESC
-            LIMIT 1""",
-            (usuario_id,),
-        ).fetchone()
-    if row is None:
+    perfil = _ler_perfil(pasta, usuario_id)
+    comparadas = {item["recomendacao_id"] for item in perfil["comparacoes"]}
+    marcadas = [
+        item for item in perfil["recomendacoes"]
+        if item.get("marcado_em") and item["id"] not in comparadas
+    ]
+    if not marcadas:
         return None
-    item = dict(row)
-    item["evidencias"] = json.loads(item.pop("evidencias_json"))
-    return item
+    pendente = copy.deepcopy(max(marcadas, key=lambda item: (item["marcado_em"], item["id"])))
+    analise = next(item for item in perfil["analises"] if item["id"] == pendente["analise_id"])
+    for campo in ("nome_arquivo", "objetivo", "intencao", "estilo", "imagem_hash"):
+        pendente[campo] = analise[campo]
+    return pendente
 
 
-def obter_pesos(usuario_id: int, contexto: str, caminho: str | Path = DB_PATH) -> dict[str, float]:
-    with conectar(caminho) as conn:
-        rows = conn.execute(
-            "SELECT codigo_acao,peso FROM pesos_aprendizado WHERE usuario_id = ? AND contexto_chave = ?",
-            (usuario_id, contexto),
-        ).fetchall()
-    return {row["codigo_acao"]: float(row["peso"]) for row in rows}
+# ---------------------------------------------------------------- aprendizado
+
+def obter_pesos(usuario_id: int, contexto: str, pasta: str | Path = DADOS_DIR) -> dict[str, float]:
+    pesos = _ler_perfil(pasta, usuario_id)["pesos_aprendizado"]
+    return {item["codigo_acao"]: float(item["peso"]) for item in pesos if item["contexto_chave"] == contexto}
 
 
-def excluir_usuario(usuario_id: int, caminho: str | Path = DB_PATH) -> None:
-    with transacao(caminho) as conn:
-        cursor = conn.execute("DELETE FROM usuarios WHERE id = ?", (usuario_id,))
-        if cursor.rowcount != 1:
-            raise ValueError("Usuario nao encontrado.")
+def obter_registro_peso(
+    usuario_id: int, contexto: str, codigo_acao: str, pasta: str | Path = DADOS_DIR
+) -> dict | None:
+    pesos = _ler_perfil(pasta, usuario_id)["pesos_aprendizado"]
+    registro = next(
+        (item for item in pesos if item["contexto_chave"] == contexto and item["codigo_acao"] == codigo_acao),
+        None,
+    )
+    return dict(registro) if registro else None
+
+
+def registrar_comparacao(
+    usuario_id: int,
+    comparacao: dict,
+    contexto: str,
+    novo_peso: float,
+    sucesso: bool,
+    falha: bool,
+    pasta: str | Path = DADOS_DIR,
+) -> int:
+    """Grava a comparacao e o peso atualizado na mesma escrita do arquivo do perfil."""
+    if comparacao["resultado"] not in RESULTADOS_VALIDOS:
+        raise ValueError("Resultado de comparacao invalido.")
+    if not 1 <= int(comparacao["avaliacao"]) <= 5:
+        raise ValueError("A avaliacao deve estar entre 1 e 5.")
+    if not 0.5 <= float(novo_peso) <= 1.5:
+        raise ValueError("O peso aprendido deve ficar entre 0,50 e 1,50.")
+
+    perfil = _ler_perfil(pasta, usuario_id)
+    chave = (comparacao["analise_antes_id"], comparacao["analise_depois_id"], comparacao["recomendacao_id"])
+    if any((item["analise_antes_id"], item["analise_depois_id"], item["recomendacao_id"]) == chave
+           for item in perfil["comparacoes"]):
+        raise RegistroDuplicadoError("Essa comparacao ja foi registrada.")
+
+    comparacao_id = _reservar_ids(pasta, "comparacao")[0]
+    perfil["comparacoes"].append({
+        "id": comparacao_id, "usuario_id": usuario_id,
+        "analise_antes_id": comparacao["analise_antes_id"],
+        "analise_depois_id": comparacao["analise_depois_id"],
+        "recomendacao_id": comparacao["recomendacao_id"],
+        "ganho_real": float(comparacao["ganho_real"]), "resultado": comparacao["resultado"],
+        "avaliacao": int(comparacao["avaliacao"]), "comentario": str(comparacao.get("comentario", ""))[:500],
+        "peso_aplicado": True, "criado_em": agora_iso(),
+    })
+    codigo_acao = comparacao["codigo_acao"]
+    registro = next(
+        (item for item in perfil["pesos_aprendizado"]
+         if item["contexto_chave"] == contexto and item["codigo_acao"] == codigo_acao),
+        None,
+    )
+    if registro is None:
+        registro = {"contexto_chave": contexto, "codigo_acao": codigo_acao, "peso": 1.0, "sucessos": 0, "falhas": 0}
+        perfil["pesos_aprendizado"].append(registro)
+    registro["peso"] = round(float(novo_peso), 2)
+    registro["sucessos"] += int(bool(sucesso))
+    registro["falhas"] += int(bool(falha))
+    registro["atualizado_em"] = agora_iso()
+    _gravar_json(_arquivo_perfil(pasta, usuario_id), perfil)
+    return comparacao_id
+
+
+def listar_comparacoes(usuario_id: int, pasta: str | Path = DADOS_DIR) -> list[dict]:
+    comparacoes = _ler_perfil(pasta, usuario_id)["comparacoes"]
+    return sorted((dict(item) for item in comparacoes), key=lambda item: item["id"])
+
+
+def listar_pesos(usuario_id: int, pasta: str | Path = DADOS_DIR) -> list[dict]:
+    """Pesos aprendidos do perfil, do mais forte para o mais fraco."""
+    pesos = [dict(item) for item in _ler_perfil(pasta, usuario_id)["pesos_aprendizado"]]
+    return sorted(pesos, key=lambda item: (-item["peso"], -item["sucessos"]))

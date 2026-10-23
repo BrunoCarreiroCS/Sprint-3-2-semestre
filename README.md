@@ -1,6 +1,8 @@
-# NextFrame JOVI AI LensLab - Sprint 3
+# NextFrame JOVI AI LensLab - Sprint 4
 
 O JOVI AI LensLab transforma a recomendação genérica da Sprint 2 em um laboratório fotográfico individual. O sistema mede uma foto localmente, usa o Gemini (quando autorizado), cria alternativas contrafactuais do tipo “E se?”, compara uma recaptura real e aprende quais orientações funcionam melhor para cada perfil.
+
+Na Sprint 4 a solução foi finalizada com **persistência em arquivos JSON** e **integração com o restante da solução NextFrame por troca de arquivos JSON** (o app da câmera JOVI envia uma solicitação e recebe de volta o diagnóstico e as recomendações).
 
 ## Por que a solução é inovadora
 
@@ -10,7 +12,7 @@ O diferencial não é apenas “usar IA”. O ciclo completo é:
 2. **Interpretar:** Gemini identifica assunto, cena, composição e movimento com saída JSON limitada por schema.
 3. **Simular:** o motor estima o ganho, risco e esforço de alternativas como adicionar luz, estabilizar ou usar modo noturno.
 4. **Verificar:** o usuário refaz a foto e o sistema compara antes/depois no mesmo objetivo e intenção.
-5. **Aprender:** o SQLite ajusta pesos apenas para aquele usuário, ação e contexto.
+5. **Aprender:** os pesos são ajustados e gravados no arquivo JSON daquele usuário, por ação e contexto.
 
 As mensagens sempre identificam o que foi **MEDIDO**, **inferido pela IA**, **PREVISTO** e **VERIFICADO**. A simulação nunca é apresentada como recaptura real.
 
@@ -26,34 +28,60 @@ As mensagens sempre identificam o que foi **MEDIDO**, **inferido pela IA**, **PR
 - **Barra de pontuação e cores:** a pontuação geral e cada dimensão têm uma barra ASCII; os rótulos MEDIDO/IA/PREVISTO/VERIFICADO usam cor (via `colorama`) quando o terminal suporta.
 - **Contexto legível:** em "Ver evolução", os pesos aprendidos aparecem com o contexto por extenso (ex.: "Retrato, ambiente escuro, assunto parado") em vez do código interno.
 
-## Requisitos atendidos
+## Requisitos da Sprint 4 atendidos
 
-- Menu com 9 funcionalidades e opção de saída.
-- Retorno automático ao menu principal.
-- Organização em funções e módulos com parâmetros e retornos.
-- Validação de opções, textos, formatos, tamanho, resolução e integridade das imagens.
-- Uso extensivo de listas e dicionários no motor de análise e recomendação.
-- Persistência individualizada em SQLite.
-- API/IA com consentimento, validação estrutural e fallback offline.
-- Interface textual clara e mensagens de erro controladas.
+| Requisito | Onde está |
+|---|---|
+| Menu de opções, retorno ao menu e opção de encerrar | `main.py` — opções 1 a 10 e 0 |
+| Funções com parâmetros e retorno | todos os módulos; regras puras separadas da interface |
+| Validação de entrada e `try/except` | `validators.py`, `main.py`, `database.py`, `integracao.py` |
+| Persistência em arquivos JSON | `database.py` — `data/usuarios.json` e `data/perfis/perfil_<id>.json` |
+| Consumo de API externa | `gemini_client.py` — Google Gemini com saída validada por JSON Schema |
+| Integração com o restante da solução | `integracao.py` — troca de arquivos JSON na pasta `integracao/` |
+| Boas práticas | constantes centrais, type hints, gravação atômica, 84 testes automatizados |
+| Interface intuitiva | resumo em linguagem simples, explorador de arquivos, cancelamento com `0` |
 
 ## Estrutura
 
 ```text
 main.py                    menu e fluxos de interação
-analysis_service.py        orquestra análise local, IA, ranking e banco
+analysis_service.py        orquestra análise local, IA, ranking e persistência
 image_analyzer.py          métricas técnicas e prévias educativas
-gemini_client.py           integração Gemini e validação de JSON
+gemini_client.py           API Gemini e validação de JSON
 recommendation_engine.py   pontuação contextual e cenários “E se?”
 learning_engine.py         comparação real e aprendizado individual
-database.py                schema e operações SQLite
+database.py                persistência em arquivos JSON
+integracao.py              contrato de integração por arquivos JSON
 validators.py              validações puras e entradas seguras
 reports.py                 diagnóstico, evolução e exportação
+integracao/                pastas de troca com o app JOVI + exemplo do contrato
 samples/                   imagens artificiais para demonstração
 tests/                     testes automatizados
 ```
 
-O banco armazena perfis, métricas, diagnósticos, recomendações, comparações e pesos. Ele **não armazena as fotografias**, localização GPS ou a chave da API.
+## Persistência em JSON
+
+```text
+data/
+  usuarios.json              perfis, consentimento e contadores de identificadores
+  perfis/perfil_<id>.json    análises, recomendações, comparações e pesos de UM perfil
+```
+
+- Cada perfil tem o seu próprio arquivo: excluir o perfil apaga só o arquivo dele.
+- Toda gravação é feita em um arquivo temporário e depois movida (`os.replace`), para que uma falha no meio não corrompa os dados.
+- Se um arquivo estiver corrompido, o programa mostra qual é e não encerra com erro técnico.
+- Os arquivos **não armazenam as fotografias**, localização GPS nem a chave da API.
+
+## Integração com o app JOVI (arquivos JSON)
+
+A opção **10** do menu troca arquivos com o app da câmera JOVI (ou qualquer outra parte da solução NextFrame):
+
+1. O app grava uma solicitação em `integracao/entrada/` — o formato está em [`integracao/exemplos/solicitacao_exemplo.json`](integracao/exemplos/solicitacao_exemplo.json).
+2. O LensLab valida, analisa a foto e grava `integracao/saida/resultado_<id_solicitacao>.json` com nota, pontos fortes, pontos a melhorar e recomendações.
+3. A solicitação atendida vai para `integracao/processadas/`. Uma solicitação inválida vai para `integracao/com_erro/` e gera `integracao/saida/erro_<nome>.json` com o motivo.
+4. O LensLab também exporta o perfil (`integracao/saida/perfil_<id>.json`) com a evolução e os conselhos aprendidos, para o app exibir.
+
+Campos da solicitação: `versao` (`"1.0"`), `id_solicitacao`, `origem`, `perfil` (`apelido`, `nivel`, `estilo`, `consentimento_api`), `foto` (caminho absoluto ou relativo à raiz do projeto), `objetivo` e `intencao`. Um perfil que já existe é reaproveitado, e o consentimento dele nunca é alterado por uma solicitação externa.
 
 ## Como executar no Windows
 
@@ -70,7 +98,7 @@ O programa funciona sem internet. Para habilitar a análise semântica do Gemini
 
 ```text
 GEMINI_API_KEY=SUA_CHAVE_AQUI
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-flash-latest
 ```
 
 O `.env` está ignorado pelo Git e não entra no ZIP. Não cole a chave no código, no PDF ou em capturas de tela.
@@ -85,20 +113,28 @@ Para apresentar o modo híbrido sem depender de internet ou de uma chave real, d
 4. Gere uma prévia de “adicionar iluminação”, se aparecer no ranking.
 5. Analise `samples/exemplo_nitido.jpg` como recaptura, avalie a orientação e mostre a evolução.
 6. Troque de perfil para demonstrar que o peso aprendido não é compartilhado.
+7. Abra a opção 10, crie uma solicitação de exemplo, processe-a e mostre o `resultado_*.json` gerado em `integracao/saida/`.
+8. Mostre os arquivos `data/usuarios.json` e `data/perfis/perfil_<id>.json` para evidenciar a persistência em JSON.
 
 ## Testes
 
 ```powershell
-python -m unittest discover -v
+python -m unittest discover -s tests -v
 ```
 
-Os testes verificam validações, métricas locais, remoção da cópia temporária, preservação da foto original, filtro do JSON da IA, fallback offline, persistência, exclusão em cascata, comparação e isolamento do aprendizado.
+Os 84 testes verificam validações, métricas locais, remoção da cópia temporária, preservação da foto original, filtro do JSON da IA, fallback offline, persistência em JSON (arquivo corrompido, gravação atômica, exclusão, identificadores únicos), comparação, isolamento do aprendizado e o contrato de integração (solicitação válida, JSON malformado, campos inválidos, exportação de perfil).
+
+O arquivo `tests/test_requisitos_sprint4.py` organiza os testes por critério da rubrica do Sprint 4 (uma classe por item: menu, subrotinas, validação e exceções, persistência JSON, API externa, integração e interface). Para rodar só ele:
+
+```powershell
+python -m unittest tests.test_requisitos_sprint4 -v
+```
 
 ## Privacidade e limites
 
 - A chamada externa só ocorre quando há consentimento no perfil **e** chave configurada.
 - Para a API é criada uma cópia JPEG temporária, reduzida e sem EXIF; ela é removida ao terminar.
-- Fotos originais e coordenadas GPS não entram no banco.
+- Fotos originais e coordenadas GPS não entram nos arquivos de dados nem nos resultados de integração.
 - Falhas de rede, autenticação, cota, timeout ou JSON inválido acionam o modo offline.
 - A pontuação é contextual e educativa, não uma medida universal de qualidade artística.
 - A IA pode errar; por isso sua saída é filtrada, rotulada e combinada com métricas locais.
@@ -121,4 +157,4 @@ Os testes verificam validações, métricas locais, remoção da cópia temporá
 - Leonardo Porto
 - Leonardo Gomes
 
-Projeto acadêmico FIAP - Sprint 3, Computational Thinking with Python.
+Projeto acadêmico FIAP - Sprint 4, Computational Thinking with Python.

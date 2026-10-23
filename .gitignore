@@ -3,11 +3,13 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-data/*.db
-data/*.db-*
+data/*
+!data/.gitkeep
 output/*
 !output/.gitkeep
+integracao/*/*
+!integracao/*/.gitkeep
+!integracao/exemplos/*
 tmp/
 *.tmp
 dist/
-

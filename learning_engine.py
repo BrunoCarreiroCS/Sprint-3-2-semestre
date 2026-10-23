@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import database
-from config import DB_PATH
+from config import DADOS_DIR
 
 
 def calcular_ajuste_peso(ganho_real: float, avaliacao: int) -> float:
@@ -45,10 +45,10 @@ def comparar_e_aprender(
     recomendacao_id: int,
     avaliacao: int,
     comentario: str = "",
-    caminho_banco: str | Path = DB_PATH,
+    pasta_dados: str | Path = DADOS_DIR,
 ) -> dict:
-    antes = database.buscar_analise(analise_antes_id, caminho_banco)
-    depois = database.buscar_analise(analise_depois_id, caminho_banco)
+    antes = database.buscar_analise(analise_antes_id, pasta_dados)
+    depois = database.buscar_analise(analise_depois_id, pasta_dados)
     if not antes or not depois:
         raise ValueError("Analise original ou recaptura nao encontrada.")
     if antes["usuario_id"] != usuario_id or depois["usuario_id"] != usuario_id:
@@ -57,7 +57,7 @@ def comparar_e_aprender(
         raise ValueError("Simulacoes nao podem ser usadas como recaptura.")
     if antes["imagem_hash"] == depois["imagem_hash"]:
         raise ValueError("A recaptura precisa ser uma foto diferente da original.")
-    recomendacoes = database.listar_recomendacoes(analise_antes_id, caminho_banco)
+    recomendacoes = database.listar_recomendacoes(analise_antes_id, pasta_dados)
     rec = next((item for item in recomendacoes if item["id"] == recomendacao_id), None)
     if rec is None:
         raise ValueError("A recomendacao nao pertence a analise original.")
@@ -69,36 +69,25 @@ def comparar_e_aprender(
     resultado = classificar_resultado(ganho, avaliacao)
     contexto = antes["metricas"].get("contexto_chave", "contexto_desconhecido")
 
-    with database.transacao(caminho_banco) as conn:
-        cursor = conn.execute(
-            """INSERT INTO comparacoes(
-                usuario_id,analise_antes_id,analise_depois_id,recomendacao_id,ganho_real,
-                resultado,avaliacao,comentario,peso_aplicado,criado_em
-            ) VALUES(?,?,?,?,?,?,?,?,1,?)""",
-            (usuario_id, analise_antes_id, analise_depois_id, recomendacao_id, ganho, resultado, avaliacao, comentario[:500], database.agora_iso()),
-        )
-        atual = conn.execute(
-            "SELECT * FROM pesos_aprendizado WHERE usuario_id=? AND contexto_chave=? AND codigo_acao=?",
-            (usuario_id, contexto, rec["codigo_acao"]),
-        ).fetchone()
-        peso_anterior = float(atual["peso"]) if atual else 1.0
-        amostras_anteriores = int(atual["sucessos"] + atual["falhas"]) if atual else 0
-        fator_confianca = calcular_fator_confianca(amostras_anteriores)
-        ajuste_aplicado = round(ajuste * fator_confianca, 4)
-        novo_peso = round(max(0.5, min(1.5, peso_anterior + ajuste_aplicado)), 2)
-        sucesso = 1 if ajuste_aplicado > 0 else 0
-        falha = 1 if ajuste_aplicado < 0 else 0
-        conn.execute(
-            """INSERT INTO pesos_aprendizado(usuario_id,contexto_chave,codigo_acao,peso,sucessos,falhas,atualizado_em)
-            VALUES(?,?,?,?,?,?,?)
-            ON CONFLICT(usuario_id,contexto_chave,codigo_acao) DO UPDATE SET
-                peso=excluded.peso,
-                sucessos=pesos_aprendizado.sucessos + excluded.sucessos,
-                falhas=pesos_aprendizado.falhas + excluded.falhas,
-                atualizado_em=excluded.atualizado_em""",
-            (usuario_id, contexto, rec["codigo_acao"], novo_peso, sucesso, falha, database.agora_iso()),
-        )
-        comparacao_id = int(cursor.lastrowid)
+    atual = database.obter_registro_peso(usuario_id, contexto, rec["codigo_acao"], pasta_dados)
+    peso_anterior = float(atual["peso"]) if atual else 1.0
+    amostras_anteriores = int(atual["sucessos"] + atual["falhas"]) if atual else 0
+    fator_confianca = calcular_fator_confianca(amostras_anteriores)
+    ajuste_aplicado = round(ajuste * fator_confianca, 4)
+    novo_peso = round(max(0.5, min(1.5, peso_anterior + ajuste_aplicado)), 2)
+    comparacao_id = database.registrar_comparacao(
+        usuario_id,
+        {
+            "analise_antes_id": analise_antes_id, "analise_depois_id": analise_depois_id,
+            "recomendacao_id": recomendacao_id, "codigo_acao": rec["codigo_acao"],
+            "ganho_real": ganho, "resultado": resultado, "avaliacao": avaliacao, "comentario": comentario,
+        },
+        contexto,
+        novo_peso,
+        sucesso=ajuste_aplicado > 0,
+        falha=ajuste_aplicado < 0,
+        pasta=pasta_dados,
+    )
 
     dimensoes_antes = antes["metricas"].get("dimensoes", {})
     dimensoes_depois = depois["metricas"].get("dimensoes", {})
@@ -115,20 +104,10 @@ def comparar_e_aprender(
     }
 
 
-def resumo_evolucao(usuario_id: int, caminho_banco: str | Path = DB_PATH) -> dict:
-    with database.conectar(caminho_banco) as conn:
-        comparacoes = conn.execute(
-            "SELECT ganho_real,resultado,recomendacao_id FROM comparacoes WHERE usuario_id=? ORDER BY id",
-            (usuario_id,),
-        ).fetchall()
-        pesos = conn.execute(
-            "SELECT codigo_acao,contexto_chave,peso,sucessos,falhas FROM pesos_aprendizado WHERE usuario_id=? ORDER BY peso DESC,sucessos DESC",
-            (usuario_id,),
-        ).fetchall()
-        analises = conn.execute(
-            "SELECT pontuacao_geral FROM analises WHERE usuario_id=? ORDER BY id",
-            (usuario_id,),
-        ).fetchall()
+def resumo_evolucao(usuario_id: int, pasta_dados: str | Path = DADOS_DIR) -> dict:
+    comparacoes = database.listar_comparacoes(usuario_id, pasta_dados)
+    pesos = database.listar_pesos(usuario_id, pasta_dados)
+    analises = list(reversed(database.listar_analises(usuario_id, pasta_dados)))
     ganhos = [float(item["ganho_real"]) for item in comparacoes]
     media = round(sum(ganhos) / len(ganhos), 2) if ganhos else 0.0
     melhor = dict(pesos[0]) if pesos else None

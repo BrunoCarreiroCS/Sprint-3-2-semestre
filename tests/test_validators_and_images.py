@@ -48,8 +48,10 @@ class ValidatorsAndImagesTest(unittest.TestCase):
 
     def test_simulacao_nao_sobrescreve_original(self) -> None:
         conteudo_antes = self.image.read_bytes()
-        destino = gerar_simulacao(self.image, "adicionar_iluminacao", 999)
+        with patch("image_analyzer.OUTPUT_DIR", self.dir / "saida"):
+            destino = gerar_simulacao(self.image, "adicionar_iluminacao", 999)
         self.assertTrue(destino.exists())
+        self.assertTrue(destino.is_relative_to(self.dir))
         self.assertEqual(self.image.read_bytes(), conteudo_antes)
 
     def test_exif_do_sub_ifd_e_lido(self) -> None:

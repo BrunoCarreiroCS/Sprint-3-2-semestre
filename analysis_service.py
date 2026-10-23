@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 import database
-from config import DB_PATH, get_gemini_api_key, is_demo_mode
+from config import DADOS_DIR, get_gemini_api_key, is_demo_mode
 from gemini_client import analisar_com_gemini
 from image_analyzer import analisar_imagem, preparar_imagem_api
 from recommendation_engine import (
@@ -24,7 +24,7 @@ def analisar_fotografia(
     intencao: str,
     estilo: str,
     permitir_api: bool,
-    caminho_banco: str | Path = DB_PATH,
+    pasta_dados: str | Path = DADOS_DIR,
     cliente_ia: Callable[[str | Path, str, str], dict] = analisar_com_gemini,
 ) -> dict:
     metricas = analisar_imagem(caminho_imagem)
@@ -41,7 +41,7 @@ def analisar_fotografia(
     pontuacao, dimensoes = calcular_pontuacao(metricas, objetivo, intencao, analise_ia)
     problemas = detectar_problemas(metricas, analise_ia)
     contexto = gerar_contexto_chave(objetivo, metricas, movimento, usuario["nivel"], estilo)
-    pesos = database.obter_pesos(usuario["id"], contexto, caminho_banco)
+    pesos = database.obter_pesos(usuario["id"], contexto, pasta_dados)
     recomendacoes = simular_intervencoes(problemas, movimento, pesos)
     metricas_completas = dict(metricas)
     metricas_completas["dimensoes"] = dimensoes
@@ -55,7 +55,7 @@ def analisar_fotografia(
         "metricas": metricas_completas, "analise_ia": analise_ia,
         "pontuacao_geral": pontuacao,
     }
-    analise_id = database.salvar_analise_com_recomendacoes(analise, recomendacoes, caminho_banco)
+    analise_id = database.salvar_analise_com_recomendacoes(analise, recomendacoes, pasta_dados)
     return {
         "analise_id": analise_id, "pontuacao_geral": pontuacao,
         "dimensoes": dimensoes, "metricas": metricas_completas,

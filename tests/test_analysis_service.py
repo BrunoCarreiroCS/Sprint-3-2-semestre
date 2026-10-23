@@ -15,13 +15,13 @@ class AnalysisServiceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         pasta = Path(self.temp.name)
-        self.db = pasta / "teste.db"
+        self.dados = pasta / "dados"
         self.image = pasta / "cena.jpg"
         imagem = Image.new("RGB", (800, 600), (20, 20, 25))
         ImageDraw.Draw(imagem).rectangle((300, 170, 500, 520), fill=(90, 80, 70))
         imagem.save(self.image)
-        database.inicializar_banco(self.db)
-        self.usuario = database.criar_usuario("Teste", "iniciante", "natural", True, self.db)
+        database.inicializar_armazenamento(self.dados)
+        self.usuario = database.criar_usuario("Teste", "iniciante", "natural", True, self.dados)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -29,11 +29,11 @@ class AnalysisServiceTest(unittest.TestCase):
     def test_sem_chave_cai_para_offline_e_persiste(self) -> None:
         with patch("analysis_service.get_gemini_api_key", return_value=None):
             resultado = analisar_fotografia(
-                self.usuario, self.image, "retrato", "destacar pessoa", "natural", True, self.db
+                self.usuario, self.image, "retrato", "destacar pessoa", "natural", True, self.dados
             )
         self.assertEqual(resultado["modo_execucao"], "offline")
         self.assertEqual(resultado["erro_ia"], "modo_offline")
-        self.assertTrue(database.buscar_analise(resultado["analise_id"], self.db))
+        self.assertTrue(database.buscar_analise(resultado["analise_id"], self.dados))
 
     def test_cliente_injetado_ativa_modo_hibrido(self) -> None:
         def cliente_falso(caminho, objetivo, intencao):
@@ -52,7 +52,7 @@ class AnalysisServiceTest(unittest.TestCase):
         with patch("analysis_service.get_gemini_api_key", return_value="chave-de-teste"):
             resultado = analisar_fotografia(
                 self.usuario, self.image, "retrato", "destacar pessoa", "natural", True,
-                self.db, cliente_ia=cliente_falso,
+                self.dados, cliente_ia=cliente_falso,
             )
         self.assertEqual(resultado["modo_execucao"], "hibrido")
         self.assertEqual(resultado["analise_ia"]["assunto_principal"], "pessoa")

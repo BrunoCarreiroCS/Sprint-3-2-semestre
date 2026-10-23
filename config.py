@@ -10,7 +10,10 @@ ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / "data"
 OUTPUT_DIR = ROOT_DIR / "output"
 SAMPLES_DIR = ROOT_DIR / "samples"
-DB_PATH = DATA_DIR / "jovi.db"
+DADOS_DIR = DATA_DIR
+INTEGRACAO_DIR = ROOT_DIR / "integracao"
+VERSAO_ARMAZENAMENTO = 1
+VERSAO_CONTRATO_INTEGRACAO = "1.0"
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MIN_IMAGE_WIDTH = 320
@@ -24,7 +27,8 @@ GEMINI_MAX_TENTATIVAS = 2
 
 def ensure_directories() -> None:
     """Cria somente os diretorios de dados previstos pelo projeto."""
-    for directory in (DATA_DIR, OUTPUT_DIR, SAMPLES_DIR):
+    pastas_integracao = [INTEGRACAO_DIR / nome for nome in ("entrada", "saida", "processadas", "com_erro")]
+    for directory in (DATA_DIR, OUTPUT_DIR, SAMPLES_DIR, *pastas_integracao):
         directory.mkdir(parents=True, exist_ok=True)
 
 

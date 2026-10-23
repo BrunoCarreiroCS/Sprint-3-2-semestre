@@ -1,0 +1,14 @@
+{
+  "versao": "1.0",
+  "origem": "app_camera_jovi",
+  "id_solicitacao": "exemplo-001",
+  "perfil": {
+    "apelido": "Demo App JOVI",
+    "nivel": "iniciante",
+    "estilo": "natural",
+    "consentimento_api": false
+  },
+  "foto": "samples/exemplo_escuro.jpg",
+  "objetivo": "retrato",
+  "intencao": "foto de perfil para rede social"
+}

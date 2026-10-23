@@ -14,8 +14,8 @@ import main
 class MainSessaoTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.db = Path(self.temp.name) / "teste.db"
-        database.inicializar_banco(self.db)
+        self.dados = Path(self.temp.name) / "dados"
+        database.inicializar_armazenamento(self.dados)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -23,31 +23,31 @@ class MainSessaoTest(unittest.TestCase):
     def executar(self, respostas: list) -> str:
         saida = io.StringIO()
         with patch("builtins.input", side_effect=respostas), redirect_stdout(saida):
-            main.main(self.db)
+            main.main(self.dados)
         return saida.getvalue()
 
     def test_excluir_unico_perfil_em_uso_encerra_sessao(self) -> None:
-        database.criar_usuario("Ana", "iniciante", "natural", False, self.db)
+        database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.executar(["1", "1", "1", "3", "1", "EXCLUIR Ana", "0"])
         self.assertIn("este e o perfil em uso", saida)
         self.assertIn("Nenhum perfil ativo. Ate logo!", saida)
-        self.assertEqual(database.listar_usuarios(self.db), [])
+        self.assertEqual(database.listar_usuarios(self.dados), [])
 
     def test_excluir_perfil_em_uso_exige_outro_perfil(self) -> None:
-        database.criar_usuario("Ana", "iniciante", "natural", False, self.db)
-        database.criar_usuario("Bia", "avancado", "vibrante", False, self.db)
+        database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
+        database.criar_usuario("Bia", "avancado", "vibrante", False, self.dados)
         saida = self.executar(["1", "1", "1", "3", "1", "EXCLUIR Ana", "0", "1", "1", "0"])
         self.assertIn("O perfil em uso foi excluido", saida)
         ultimo_cabecalho = saida.rsplit("Perfil: ", 1)[1]
         self.assertTrue(ultimo_cabecalho.startswith("Bia"))
 
     def test_cancelar_troca_mantem_perfil_atual(self) -> None:
-        database.criar_usuario("Ana", "iniciante", "natural", False, self.db)
+        database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.executar(["1", "1", "1", "0", "0"])
         self.assertTrue(saida.rsplit("Perfil: ", 1)[1].startswith("Ana"))
 
     def test_ctrl_c_encerra_sem_traceback(self) -> None:
-        database.criar_usuario("Ana", "iniciante", "natural", False, self.db)
+        database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.executar(["1", "1", KeyboardInterrupt()])
         self.assertIn("Sessao encerrada", saida)
 
