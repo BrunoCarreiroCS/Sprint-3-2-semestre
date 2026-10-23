@@ -197,7 +197,7 @@ def descricao_perfil(usuario: dict) -> str:
     return f"{usuario['apelido']} ({usuario['nivel']}, {usuario['estilo_preferido']})"
 
 
-def selecionar_perfil(caminho_banco: str | Path = DB_PATH) -> dict | None:
+def selecionar_perfil(caminho_banco: str | Path = DB_PATH, ativo_id: int | None = None) -> dict | None:
     titulo("SELECIONAR PERFIL")
     usuarios = database.listar_usuarios(caminho_banco)
     if not usuarios:
@@ -213,16 +213,20 @@ def selecionar_perfil(caminho_banco: str | Path = DB_PATH) -> dict | None:
     if escolha == 2:
         return criar_perfil(caminho_banco)
     if escolha == 3:
-        excluir_perfil(usuarios, caminho_banco)
-        return selecionar_perfil(caminho_banco)
+        excluir_perfil(usuarios, caminho_banco, ativo_id)
+        return selecionar_perfil(caminho_banco, ativo_id)
     return escolher_registro(usuarios, descricao_perfil, "perfil")
 
 
-def excluir_perfil(usuarios: list[dict], caminho_banco: str | Path = DB_PATH) -> None:
+def excluir_perfil(
+    usuarios: list[dict], caminho_banco: str | Path = DB_PATH, ativo_id: int | None = None
+) -> None:
     titulo("EXCLUIR PERFIL")
     usuario = escolher_registro(usuarios, descricao_perfil, "perfil")
     if not usuario:
         return
+    if usuario["id"] == ativo_id:
+        print("Atencao: este e o perfil em uso. Depois da exclusao sera preciso escolher ou criar outro.")
     confirmacao = input(
         f"Digite EXCLUIR {usuario['apelido']} para confirmar (apaga todo o historico deste perfil): "
     ).strip()
@@ -482,7 +486,27 @@ def exibir_menu(usuario: dict) -> None:
     print("  0. Encerrar")
 
 
+def trocar_perfil(usuario: dict, caminho_banco: str | Path = DB_PATH) -> dict | None:
+    """Troca de perfil sem deixar a sessao presa a um perfil que foi excluido."""
+    novo = selecionar_perfil(caminho_banco, usuario["id"])
+    if novo:
+        return novo
+    if database.buscar_usuario(usuario["id"], caminho_banco):
+        return usuario
+    if not database.listar_usuarios(caminho_banco):
+        return None
+    print("O perfil em uso foi excluido. Selecione ou crie outro perfil para continuar.")
+    return selecionar_perfil(caminho_banco)
+
+
 def main(caminho_banco: str | Path = DB_PATH) -> None:
+    try:
+        executar_sessao(caminho_banco)
+    except (KeyboardInterrupt, EOFError):
+        print("\nSessao encerrada. Suas fotos nao foram armazenadas no banco.")
+
+
+def executar_sessao(caminho_banco: str | Path = DB_PATH) -> None:
     ensure_directories()
     database.inicializar_banco(caminho_banco)
     print("JOVI AI LensLab: um laboratorio para testar, medir e aprender fotografia.")
@@ -498,9 +522,10 @@ def main(caminho_banco: str | Path = DB_PATH) -> None:
                 print("Sessao encerrada. Suas fotos nao foram armazenadas no banco.")
                 return
             if opcao == 1:
-                novo = selecionar_perfil(caminho_banco)
-                if novo:
-                    usuario = novo
+                usuario = trocar_perfil(usuario, caminho_banco)
+                if not usuario:
+                    print("Nenhum perfil ativo. Ate logo!")
+                    return
             elif opcao == 2:
                 executar_analise(usuario, caminho_banco)
             elif opcao == 3:
