@@ -1,4 +1,6 @@
 docs/superpowers/ export-ignore
 .gitignore export-ignore
 .gitattributes export-ignore
+tools/ export-ignore
+requirements-dev.txt export-ignore
 *.pdf binary

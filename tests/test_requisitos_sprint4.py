@@ -78,7 +78,7 @@ class Req1MenuTest(BaseSessao):
     def test_apos_uma_funcionalidade_o_programa_volta_ao_menu(self) -> None:
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.sessao(["1", "1", "6", "7", "0"])
-        self.assertEqual(saida.count("NEXTFRAME JOVI AI LENSLAB"), 3)
+        self.assertEqual(saida.count("HUMANLY JOVI AI LENSLAB"), 3)
         self.assertIn("Sessao encerrada", saida)
 
     def test_opcao_zero_finaliza_a_execucao(self) -> None:

@@ -1,8 +1,8 @@
-# NextFrame JOVI AI LensLab - Sprint 4
+# Humanly JOVI AI LensLab - Sprint 4
 
 O JOVI AI LensLab transforma a recomendação genérica da Sprint 2 em um laboratório fotográfico individual. O sistema mede uma foto localmente, usa o Gemini (quando autorizado), cria alternativas contrafactuais do tipo “E se?”, compara uma recaptura real e aprende quais orientações funcionam melhor para cada perfil.
 
-Na Sprint 4 a solução foi finalizada com **persistência em arquivos JSON** e **integração com o restante da solução NextFrame por troca de arquivos JSON** (o app da câmera JOVI envia uma solicitação e recebe de volta o diagnóstico e as recomendações).
+Na Sprint 4 a solução foi finalizada com **persistência em arquivos JSON** e **integração com o restante da solução Humanly por troca de arquivos JSON** (o app da câmera JOVI envia uma solicitação e recebe de volta o diagnóstico e as recomendações).
 
 ## Por que a solução é inovadora
 
@@ -74,7 +74,7 @@ data/
 
 ## Integração com o app JOVI (arquivos JSON)
 
-A opção **10** do menu troca arquivos com o app da câmera JOVI (ou qualquer outra parte da solução NextFrame):
+A opção **10** do menu troca arquivos com o app da câmera JOVI (ou qualquer outra parte da solução Humanly):
 
 1. O app grava uma solicitação em `integracao/entrada/` — o formato está em [`integracao/exemplos/solicitacao_exemplo.json`](integracao/exemplos/solicitacao_exemplo.json).
 2. O LensLab valida, analisa a foto e grava `integracao/saida/resultado_<id_solicitacao>.json` com nota, pontos fortes, pontos a melhorar e recomendações.

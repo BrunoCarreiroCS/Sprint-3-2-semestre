@@ -1,4 +1,4 @@
-"""Integracao com o restante da solucao NextFrame por meio de arquivos JSON.
+"""Integracao com o restante da solucao Humanly por meio de arquivos JSON.
 
 Contrato de troca (versao 1.0):
 

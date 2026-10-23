@@ -61,7 +61,7 @@ from analysis_service import analisar_fotografia  # noqa: E402
 from config import SAMPLES_DIR  # noqa: E402
 from reports import formatar_resumo_analise  # noqa: E402
 
-DESTINO = ROOT / "docs" / "documentacao_nextframe_jovi_sprint4.pdf"
+DESTINO = ROOT / "docs" / "documentacao_humanly_jovi_sprint4.pdf"
 LARGURA_PAGINA, ALTURA_PAGINA = A4
 MARGEM_X = 2.0 * cm
 LARGURA_UTIL = LARGURA_PAGINA - 2 * MARGEM_X
@@ -638,8 +638,8 @@ class Documento(BaseDocTemplate):
         super().__init__(
             str(caminho), pagesize=A4, leftMargin=MARGEM_X, rightMargin=MARGEM_X,
             topMargin=2.3 * cm, bottomMargin=2.0 * cm,
-            title="NextFrame JOVI AI LensLab — Documentação da Sprint 4",
-            author="Equipe NextFrame: " + ", ".join(f"{nome} (RM {rm})" for nome, rm in INTEGRANTES),
+            title="Humanly JOVI AI LensLab — Documentação da Sprint 4",
+            author="Equipe Humanly: " + ", ".join(f"{nome} (RM {rm})" for nome, rm in INTEGRANTES),
             subject="Computational Thinking with Python — Sprint 4",
         )
         self.secao_atual = ""
@@ -718,7 +718,7 @@ def desenhar_moldura(canv, doc) -> None:
     topo = ALTURA_PAGINA - 1.35 * cm
     canv.setFont(F["TextoSemi"], 7.8)
     canv.setFillColor(NAVY)
-    canv.drawString(MARGEM_X, topo, "NextFrame  ·  JOVI AI LensLab")
+    canv.drawString(MARGEM_X, topo, "Humanly  ·  JOVI AI LensLab")
     canv.setFont(F["Texto"], 7.8)
     canv.setFillColor(CINZA)
     canv.drawRightString(LARGURA_PAGINA - MARGEM_X, topo, doc.titulo_da_pagina or doc.secao_inicio_pagina)
@@ -757,7 +757,7 @@ def montar_capa() -> list:
     ]))
     return [
         Spacer(1, 6.4 * cm),
-        Paragraph("NEXTFRAME  ·  SPRINT 4", E["capa_kicker"]),
+        Paragraph("HUMANLY  ·  SPRINT 4", E["capa_kicker"]),
         Spacer(1, 4),
         Paragraph("JOVI AI LensLab", E["capa_titulo"]),
         Spacer(1, 4),
@@ -824,7 +824,7 @@ def montar_conteudo(ex: dict) -> list:
         h2("Objetivo geral"),
         p("Desenvolver em Python uma ferramenta que combine análise técnica local, interpretação por IA e "
           "verificação por recaptura para produzir recomendações fotográficas explicáveis e personalizadas, "
-          "com dados persistidos em arquivos JSON e integração com o restante da solução NextFrame."),
+          "com dados persistidos em arquivos JSON e integração com o restante da solução Humanly."),
         h2("Objetivos específicos"),
         *lista([
             "Medir indicadores técnicos da foto sem depender de internet.",

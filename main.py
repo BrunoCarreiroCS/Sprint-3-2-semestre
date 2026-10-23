@@ -1,4 +1,4 @@
-"""Interface textual do NextFrame JOVI AI LensLab."""
+"""Interface textual do Humanly JOVI AI LensLab."""
 
 from __future__ import annotations
 
@@ -504,7 +504,7 @@ def menu_integracao(
 
 def exibir_menu(usuario: dict) -> None:
     chave = "demo" if is_demo_mode() else ("configurada" if get_gemini_api_key() else "ausente")
-    titulo("NEXTFRAME JOVI AI LENSLAB")
+    titulo("HUMANLY JOVI AI LENSLAB")
     print(f"Perfil: {usuario['apelido']} | Nivel: {usuario['nivel']} | Gemini: chave {chave}")
     print("  1. Trocar ou criar perfil")
     print("  2. Analisar fotografia")
