@@ -749,7 +749,7 @@ def montar_capa() -> list:
     ]))
     return [
         Spacer(1, 6.4 * cm),
-        Paragraph("NEXTFRAME  ·  CHALLENGE JOVI 2026", E["capa_kicker"]),
+        Paragraph("NEXTFRAME  ·  SPRINT 4", E["capa_kicker"]),
         Spacer(1, 4),
         Paragraph("JOVI AI LensLab", E["capa_titulo"]),
         Spacer(1, 4),
