@@ -66,7 +66,12 @@ LARGURA_PAGINA, ALTURA_PAGINA = A4
 MARGEM_X = 2.0 * cm
 LARGURA_UTIL = LARGURA_PAGINA - 2 * MARGEM_X
 
-INTEGRANTES = ["Bruno Carreiro", "Daniel Graciano", "Gustavo Romero", "Leonardo Porto", "Leonardo Gomes"]
+TURMA = "1ESPI"
+INTEGRANTES = [
+    ("Eduardo Bechara Medeiros Craveiro", "571081"),
+    ("Gustavo Moita de Lima", "569180"),
+    ("Bruno Carreiro Dos Santos", "569423"),
+]
 DATA_ENTREGA = "23 de outubro de 2026"
 
 # ---------------------------------------------------------------- identidade visual
@@ -634,7 +639,7 @@ class Documento(BaseDocTemplate):
             str(caminho), pagesize=A4, leftMargin=MARGEM_X, rightMargin=MARGEM_X,
             topMargin=2.3 * cm, bottomMargin=2.0 * cm,
             title="NextFrame JOVI AI LensLab — Documentação da Sprint 4",
-            author="Equipe NextFrame: " + ", ".join(INTEGRANTES),
+            author="Equipe NextFrame: " + ", ".join(f"{nome} (RM {rm})" for nome, rm in INTEGRANTES),
             subject="Computational Thinking with Python — Sprint 4",
         )
         self.secao_atual = ""
@@ -732,7 +737,10 @@ def montar_capa() -> list:
     info = [
         ("DISCIPLINA", "Computational Thinking with Python"),
         ("ENTREGA", "Sprint 4 — implementação final"),
-        ("INTEGRANTES", "<br/>".join(INTEGRANTES)),
+        ("TURMA", TURMA),
+        ("INTEGRANTES", "<br/>".join(
+            f"{nome}&nbsp;&nbsp;<font color='#7FC8CE'>RM {rm}</font>" for nome, rm in INTEGRANTES
+        )),
         ("DATA", DATA_ENTREGA),
     ]
     tabela_info = Table(

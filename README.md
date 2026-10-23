@@ -149,12 +149,12 @@ python -m unittest tests.test_requisitos_sprint4 -v
 - O [Camera Coach do Pixel](https://support.google.com/pixelcamera/answer/2838995) evidencia a tendência de orientação fotográfica contextual, além da necessidade de fallback quando não há conexão.
 - Discussões da comunidade sobre [limites e expectativas do Night Mode](https://www.reddit.com/r/photography/comments/jeysrk) e [sugestões para câmera de smartphone](https://www.reddit.com/r/GalaxyS21/comments/qxj2g3) ajudaram a priorizar explicações de risco, alternativas comparáveis e transparência sobre limitações.
 
-## Equipe
+## Equipe — turma 1ESPI
 
-- Bruno Carreiro
-- Daniel Graciano
-- Gustavo Romero
-- Leonardo Porto
-- Leonardo Gomes
+| Integrante | RM |
+|---|---|
+| Eduardo Bechara Medeiros Craveiro | 571081 |
+| Gustavo Moita de Lima | 569180 |
+| Bruno Carreiro Dos Santos | 569423 |
 
 Projeto acadêmico FIAP - Sprint 4, Computational Thinking with Python.
