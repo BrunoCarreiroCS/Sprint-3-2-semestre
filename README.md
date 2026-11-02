@@ -146,7 +146,7 @@ python -m unittest tests.test_requisitos_sprint4 -v
 - [Structured Outputs](https://ai.google.dev/gemini-api/docs/structured-output) fundamenta o uso de JSON Schema para uma resposta previsível e validável.
 - A ficha da família [Gemini Flash](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash) registra entrada de imagens e suporte a saída estruturada; o projeto usa o alias `gemini-flash-latest` para acompanhar a versão recomendada atual.
 - As [Camera Extensions do Android](https://developer.android.com/media/camera/camera-extensions) descrevem Auto, Bokeh, HDR e Night e observam que captura noturna leva tempo e exige estabilidade.
-- O [Camera Coach do Pixel](https://support.google.com/pixelcamera/answer/2838995) evidencia a tendência de orientação fotográfica contextual, além da necessidade de fallback quando não há conexão.
+- O [Camera Coach do Pixel](https://support.google.com/pixelcamera/answer/17367411) evidencia a tendência de orientação fotográfica contextual, além da necessidade de fallback quando não há conexão.
 - Discussões da comunidade sobre [limites e expectativas do Night Mode](https://www.reddit.com/r/photography/comments/jeysrk) e [sugestões para câmera de smartphone](https://www.reddit.com/r/GalaxyS21/comments/qxj2g3) ajudaram a priorizar explicações de risco, alternativas comparáveis e transparência sobre limitações.
 
 ## Equipe — turma 1ESPI
