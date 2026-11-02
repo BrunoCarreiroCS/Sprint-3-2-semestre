@@ -72,13 +72,13 @@ def _ler_json(arquivo: Path, padrao: dict) -> dict:
             dados = json.load(stream)
     except json.JSONDecodeError as exc:
         raise ArmazenamentoError(
-            f"O arquivo de dados {arquivo.name} esta corrompido (linha {exc.lineno}). "
-            "Restaure uma copia ou apague-o para recomecar."
+            f"O arquivo de dados {arquivo.name} está corrompido (linha {exc.lineno}). "
+            "Restaure uma cópia ou apague-o para recomeçar."
         ) from exc
     except OSError as exc:
-        raise ArmazenamentoError(f"Nao foi possivel ler {arquivo.name}: {exc.strerror}.") from exc
+        raise ArmazenamentoError(f"Não foi possível ler {arquivo.name}: {exc.strerror}.") from exc
     if not isinstance(dados, dict):
-        raise ArmazenamentoError(f"O arquivo {arquivo.name} nao tem o formato esperado.")
+        raise ArmazenamentoError(f"O arquivo {arquivo.name} não tem o formato esperado.")
     for chave, valor in padrao.items():
         dados.setdefault(chave, copy.deepcopy(valor))
     return dados
@@ -94,7 +94,7 @@ def _gravar_json(arquivo: Path, dados: dict) -> None:
     except OSError as exc:
         if temporario.exists():
             temporario.unlink()
-        raise ArmazenamentoError(f"Nao foi possivel gravar {arquivo.name}: {exc.strerror}.") from exc
+        raise ArmazenamentoError(f"Não foi possível gravar {arquivo.name}: {exc.strerror}.") from exc
 
 
 def _ler_indice(pasta: str | Path) -> dict:
@@ -151,10 +151,10 @@ def criar_usuario(
 ) -> dict:
     apelido = str(apelido).strip()
     if nivel not in NIVEIS_VALIDOS or estilo not in ESTILOS_VALIDOS:
-        raise ValueError("Nivel ou estilo invalido.")
+        raise ValueError("Nível ou estilo inválido.")
     indice = _ler_indice(pasta)
     if any(item["apelido"].casefold() == apelido.casefold() for item in indice["usuarios"]):
-        raise RegistroDuplicadoError(f"O apelido '{apelido}' ja esta em uso.")
+        raise RegistroDuplicadoError(f"O apelido '{apelido}' já está em uso.")
     usuario = {
         "id": int(indice["proximo_id"]["usuario"]), "apelido": apelido, "nivel": nivel,
         "estilo_preferido": estilo, "consentimento_api": bool(consentimento_api), "criado_em": agora_iso(),
@@ -184,7 +184,7 @@ def atualizar_consentimento(usuario_id: int, consentimento: bool, pasta: str | P
     indice = _ler_indice(pasta)
     usuario = next((item for item in indice["usuarios"] if item["id"] == usuario_id), None)
     if usuario is None:
-        raise ValueError("Usuario nao encontrado.")
+        raise ValueError("Usuário não encontrado.")
     usuario["consentimento_api"] = bool(consentimento)
     _gravar_json(_arquivo_indice(pasta), indice)
 
@@ -194,7 +194,7 @@ def excluir_usuario(usuario_id: int, pasta: str | Path = DADOS_DIR) -> None:
     indice = _ler_indice(pasta)
     restantes = [item for item in indice["usuarios"] if item["id"] != usuario_id]
     if len(restantes) == len(indice["usuarios"]):
-        raise ValueError("Usuario nao encontrado.")
+        raise ValueError("Usuário não encontrado.")
     indice["usuarios"] = restantes
     _gravar_json(_arquivo_indice(pasta), indice)
     arquivo = _arquivo_perfil(pasta, usuario_id)
@@ -211,12 +211,12 @@ def salvar_analise_com_recomendacoes(
 ) -> int:
     usuario_id = int(analise["usuario_id"])
     if buscar_usuario(usuario_id, pasta) is None:
-        raise ValueError("Usuario nao encontrado.")
+        raise ValueError("Usuário não encontrado.")
     pontuacao = float(analise["pontuacao_geral"])
     if not 0 <= pontuacao <= 100:
-        raise ValueError("Pontuacao geral fora do intervalo 0-100.")
+        raise ValueError("Pontuação geral fora do intervalo 0-100.")
     if analise["modo_execucao"] not in MODOS_VALIDOS:
-        raise ValueError("Modo de execucao invalido.")
+        raise ValueError("Modo de execução inválido.")
 
     perfil = _ler_perfil(pasta, usuario_id)
     analise_id = _reservar_ids(pasta, "analise")[0]
@@ -266,12 +266,12 @@ def listar_recomendacoes(analise_id: int, pasta: str | Path = DADOS_DIR) -> list
 def marcar_recomendacao(recomendacao_id: int, analise_id: int, pasta: str | Path = DADOS_DIR) -> None:
     encontrado = _localizar_analise(pasta, analise_id)
     if not encontrado:
-        raise ValueError("Recomendacao nao encontrada para esta analise.")
+        raise ValueError("Recomendação não encontrada para esta análise.")
     perfil = encontrado[0]
     da_analise = [item for item in perfil["recomendacoes"] if item["analise_id"] == analise_id]
     alvo = next((item for item in da_analise if item["id"] == recomendacao_id), None)
     if alvo is None:
-        raise ValueError("Recomendacao nao encontrada para esta analise.")
+        raise ValueError("Recomendação não encontrada para esta análise.")
     for item in da_analise:
         item["selecionada"] = False
     alvo["selecionada"] = True
@@ -325,9 +325,9 @@ def registrar_comparacao(
 ) -> int:
     """Grava a comparacao e o peso atualizado na mesma escrita do arquivo do perfil."""
     if comparacao["resultado"] not in RESULTADOS_VALIDOS:
-        raise ValueError("Resultado de comparacao invalido.")
+        raise ValueError("Resultado de comparação inválido.")
     if not 1 <= int(comparacao["avaliacao"]) <= 5:
-        raise ValueError("A avaliacao deve estar entre 1 e 5.")
+        raise ValueError("A avaliação deve estar entre 1 e 5.")
     if not 0.5 <= float(novo_peso) <= 1.5:
         raise ValueError("O peso aprendido deve ficar entre 0,50 e 1,50.")
 
@@ -335,7 +335,7 @@ def registrar_comparacao(
     chave = (comparacao["analise_antes_id"], comparacao["analise_depois_id"], comparacao["recomendacao_id"])
     if any((item["analise_antes_id"], item["analise_depois_id"], item["recomendacao_id"]) == chave
            for item in perfil["comparacoes"]):
-        raise RegistroDuplicadoError("Essa comparacao ja foi registrada.")
+        raise RegistroDuplicadoError("Essa comparação já foi registrada.")
 
     comparacao_id = _reservar_ids(pasta, "comparacao")[0]
     perfil["comparacoes"].append({

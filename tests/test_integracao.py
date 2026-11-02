@@ -68,16 +68,16 @@ class IntegracaoTest(unittest.TestCase):
         resumo = self.processar()
         self.assertEqual(resumo[0]["status"], "erro")
         erro = json.loads((self.pastas["saida"] / "erro_quebrado.json").read_text(encoding="utf-8"))
-        self.assertIn("JSON invalido", erro["mensagem"])
+        self.assertIn("JSON inválido", erro["mensagem"])
         self.assertEqual(len(list(self.pastas["com_erro"].glob("*.json"))), 1)
         self.assertEqual(integracao.listar_pendentes(self.base), [])
 
     def test_campos_invalidos_sao_rejeitados_com_motivo(self) -> None:
         casos = {
-            "nao suportada": ("versao", "9.0"),
-            "Objetivo invalido": ("objetivo", "astronomia"),
-            "id_solicitacao": ("id_solicitacao", "id com espaco"),
-            "nao encontrado": ("foto", "samples/nao_existe.jpg"),
+            "não suportada": ("versao", "9.0"),
+            "Objetivo inválido": ("objetivo", "astronomia"),
+            "id_solicitacao": ("id_solicitacao", "id com espaço"),
+            "não encontrado": ("foto", "samples/nao_existe.jpg"),
         }
         for trecho, (campo, valor) in casos.items():
             with self.subTest(campo=campo):

@@ -61,14 +61,14 @@ def analisar_imagem(caminho: str | Path) -> dict:
             largura, altura = imagem.size
             if largura < MIN_IMAGE_WIDTH or altura < MIN_IMAGE_HEIGHT:
                 raise ValidationError(
-                    f"Resolucao minima: {MIN_IMAGE_WIDTH}x{MIN_IMAGE_HEIGHT} pixels."
+                    f"Resolução mínima: {MIN_IMAGE_WIDTH}x{MIN_IMAGE_HEIGHT} pixels."
                 )
             exif = _extrair_exif_seguro(original)
             rgb = np.asarray(imagem)
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         if isinstance(exc, ValidationError):
             raise
-        raise ValidationError("A imagem esta corrompida ou nao pode ser decodificada.") from exc
+        raise ValidationError("A imagem está corrompida ou não pode ser decodificada.") from exc
 
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     cinza = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
@@ -116,6 +116,16 @@ def preparar_imagem_api(caminho: str | Path) -> Iterator[Path]:
             temporario.unlink()
 
 
+def _fonte_aviso(tamanho: int) -> tuple[ImageFont.ImageFont | ImageFont.FreeTypeFont, str]:
+    """Usa uma fonte do sistema com acentos; sem ela, a fonte embutida do Pillow recebe o aviso sem acentos."""
+    for nome in ("arial.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"):
+        try:
+            return ImageFont.truetype(nome, tamanho), "SIMULAÇÃO EDUCATIVA - NÃO É RECAPTURA"
+        except OSError:
+            continue
+    return ImageFont.load_default(), "SIMULACAO EDUCATIVA - NAO E RECAPTURA"
+
+
 def gerar_simulacao(caminho: str | Path, codigo_acao: str, usuario_id: int) -> Path:
     """Cria uma previa educativa sem sobrescrever a fotografia original."""
     arquivo = validar_caminho_imagem(caminho)
@@ -139,11 +149,11 @@ def gerar_simulacao(caminho: str | Path, codigo_acao: str, usuario_id: int) -> P
             desenho.rectangle((w // 6, h // 6, 5 * w // 6, 5 * h // 6), outline="#00D4FF", width=max(3, w // 250))
 
         desenho = ImageDraw.Draw(imagem)
-        texto = "SIMULACAO EDUCATIVA - NAO E RECAPTURA"
         margem = max(8, imagem.width // 100)
         altura_faixa = max(34, imagem.height // 14)
+        fonte, texto = _fonte_aviso(max(12, altura_faixa // 2))
         desenho.rectangle((0, 0, imagem.width, altura_faixa), fill=(5, 20, 40))
-        desenho.text((margem, margem), texto, fill=(255, 255, 255), font=ImageFont.load_default())
+        desenho.text((margem, margem), texto, fill=(255, 255, 255), font=fonte)
         imagem.save(destino, "JPEG", quality=90)
     return destino
 

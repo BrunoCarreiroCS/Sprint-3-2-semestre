@@ -50,19 +50,19 @@ def comparar_e_aprender(
     antes = database.buscar_analise(analise_antes_id, pasta_dados)
     depois = database.buscar_analise(analise_depois_id, pasta_dados)
     if not antes or not depois:
-        raise ValueError("Analise original ou recaptura nao encontrada.")
+        raise ValueError("Análise original ou recaptura não encontrada.")
     if antes["usuario_id"] != usuario_id or depois["usuario_id"] != usuario_id:
-        raise ValueError("As analises devem pertencer ao usuario ativo.")
+        raise ValueError("As análises devem pertencer ao usuário ativo.")
     if antes.get("eh_simulacao") or depois.get("eh_simulacao"):
-        raise ValueError("Simulacoes nao podem ser usadas como recaptura.")
+        raise ValueError("Simulações não podem ser usadas como recaptura.")
     if antes["imagem_hash"] == depois["imagem_hash"]:
         raise ValueError("A recaptura precisa ser uma foto diferente da original.")
     recomendacoes = database.listar_recomendacoes(analise_antes_id, pasta_dados)
     rec = next((item for item in recomendacoes if item["id"] == recomendacao_id), None)
     if rec is None:
-        raise ValueError("A recomendacao nao pertence a analise original.")
+        raise ValueError("A recomendação não pertence à análise original.")
     if not 1 <= avaliacao <= 5:
-        raise ValueError("A avaliacao deve estar entre 1 e 5.")
+        raise ValueError("A avaliação deve estar entre 1 e 5.")
 
     ganho = round(float(depois["pontuacao_geral"]) - float(antes["pontuacao_geral"]), 2)
     ajuste = calcular_ajuste_peso(ganho, avaliacao)

@@ -29,15 +29,15 @@ class MainSessaoTest(unittest.TestCase):
     def test_excluir_unico_perfil_em_uso_encerra_sessao(self) -> None:
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.executar(["1", "1", "1", "3", "1", "EXCLUIR Ana", "0"])
-        self.assertIn("este e o perfil em uso", saida)
-        self.assertIn("Nenhum perfil ativo. Ate logo!", saida)
+        self.assertIn("este é o perfil em uso", saida)
+        self.assertIn("Nenhum perfil ativo. Até logo!", saida)
         self.assertEqual(database.listar_usuarios(self.dados), [])
 
     def test_excluir_perfil_em_uso_exige_outro_perfil(self) -> None:
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         database.criar_usuario("Bia", "avancado", "vibrante", False, self.dados)
         saida = self.executar(["1", "1", "1", "3", "1", "EXCLUIR Ana", "0", "1", "1", "0"])
-        self.assertIn("O perfil em uso foi excluido", saida)
+        self.assertIn("O perfil em uso foi excluído", saida)
         ultimo_cabecalho = saida.rsplit("Perfil: ", 1)[1]
         self.assertTrue(ultimo_cabecalho.startswith("Bia"))
 
@@ -49,11 +49,11 @@ class MainSessaoTest(unittest.TestCase):
     def test_ctrl_c_encerra_sem_traceback(self) -> None:
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.executar(["1", "1", KeyboardInterrupt()])
-        self.assertIn("Sessao encerrada", saida)
+        self.assertIn("Sessão encerrada", saida)
 
     def test_fim_da_entrada_encerra_sem_traceback(self) -> None:
         saida = self.executar(["Caio", EOFError()])
-        self.assertIn("Sessao encerrada", saida)
+        self.assertIn("Sessão encerrada", saida)
 
 
 if __name__ == "__main__":

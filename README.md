@@ -53,6 +53,7 @@ learning_engine.py         comparação real e aprendizado individual
 database.py                persistência em arquivos JSON
 integracao.py              contrato de integração por arquivos JSON
 validators.py              validações puras e entradas seguras
+textos.py                  rótulos acentuados para os códigos internos exibidos
 reports.py                 diagnóstico, evolução e exportação
 integracao/                pastas de troca com o app JOVI + exemplo do contrato
 samples/                   imagens artificiais para demonstração

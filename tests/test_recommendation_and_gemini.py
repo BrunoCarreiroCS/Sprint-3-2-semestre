@@ -27,7 +27,7 @@ class RecommendationAndGeminiTest(unittest.TestCase):
             "saturacao": 42, "megapixels": 2, "realces_estourados": 0,
             "sombras_recortadas": 0,
         }
-        documento, _ = calcular_pontuacao(metricas, "documento", "texto legivel")
+        documento, _ = calcular_pontuacao(metricas, "documento", "texto legível")
         redes, _ = calcular_pontuacao(metricas, "redes_sociais", "impacto visual")
         self.assertNotEqual(documento, redes)
 

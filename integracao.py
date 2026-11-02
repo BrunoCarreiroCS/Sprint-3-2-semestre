@@ -30,6 +30,7 @@ from gemini_client import analisar_com_gemini, analisar_com_gemini_demo
 from learning_engine import resumo_evolucao
 from recommendation_engine import PESOS_OBJETIVO, formatar_contexto
 from reports import ERRO_IA_LEGIVEL, classificar_pontuacao, pontos_fortes_e_fracos
+from textos import legivel
 from validators import ValidationError, validar_caminho_imagem, validar_texto
 
 PASTAS = ("entrada", "saida", "processadas", "com_erro")
@@ -70,33 +71,33 @@ def resolver_foto(valor: object) -> Path:
 def validar_solicitacao(dados: object) -> dict:
     """Confere o contrato e devolve a solicitacao normalizada."""
     if not isinstance(dados, dict):
-        raise ValidationError("A solicitacao precisa ser um objeto JSON.")
+        raise ValidationError("A solicitação precisa ser um objeto JSON.")
     versao = str(dados.get("versao", ""))
     if versao.split(".")[0] != VERSAO_CONTRATO_INTEGRACAO.split(".")[0]:
         raise ValidationError(
-            f"Versao de contrato '{versao or 'ausente'}' nao suportada; use {VERSAO_CONTRATO_INTEGRACAO}."
+            f"Versão de contrato '{versao or 'ausente'}' não suportada; use {VERSAO_CONTRATO_INTEGRACAO}."
         )
     id_solicitacao = str(dados.get("id_solicitacao", "")).strip()
     if not PADRAO_ID.match(id_solicitacao):
-        raise ValidationError("id_solicitacao deve ter de 1 a 60 caracteres: letras, numeros, - ou _.")
+        raise ValidationError("id_solicitacao deve ter de 1 a 60 caracteres: letras, números, - ou _.")
 
     perfil = dados.get("perfil")
     if not isinstance(perfil, dict):
-        raise ValidationError("O campo 'perfil' e obrigatorio e deve ser um objeto.")
+        raise ValidationError("O campo 'perfil' é obrigatório e deve ser um objeto.")
     apelido = validar_texto(perfil.get("apelido", ""), "apelido", 2, 40)
     nivel = str(perfil.get("nivel", "iniciante")).strip().lower()
     estilo = str(perfil.get("estilo", "natural")).strip().lower()
     if nivel not in NIVEIS:
-        raise ValidationError(f"Nivel invalido. Use: {', '.join(NIVEIS)}.")
+        raise ValidationError(f"Nível inválido. Use: {', '.join(NIVEIS)}.")
     if estilo not in ESTILOS:
-        raise ValidationError(f"Estilo invalido. Use: {', '.join(ESTILOS)}.")
+        raise ValidationError(f"Estilo inválido. Use: {', '.join(ESTILOS)}.")
     consentimento = perfil.get("consentimento_api", False)
     if not isinstance(consentimento, bool):
         raise ValidationError("consentimento_api deve ser true ou false.")
 
     objetivo = str(dados.get("objetivo", "")).strip().lower()
     if objetivo not in PESOS_OBJETIVO:
-        raise ValidationError(f"Objetivo invalido. Use: {', '.join(sorted(PESOS_OBJETIVO))}.")
+        raise ValidationError(f"Objetivo inválido. Use: {', '.join(sorted(PESOS_OBJETIVO))}.")
     intencao = validar_texto(dados.get("intencao", ""), "intencao", 3, 160)
     foto = resolver_foto(dados.get("foto", ""))
 
@@ -112,7 +113,7 @@ def ler_solicitacao(arquivo: Path) -> dict:
         with open(arquivo, encoding="utf-8-sig") as stream:
             return json.load(stream)
     except json.JSONDecodeError as exc:
-        raise ValidationError(f"JSON invalido na linha {exc.lineno}, coluna {exc.colno}.") from exc
+        raise ValidationError(f"JSON inválido na linha {exc.lineno}, coluna {exc.colno}.") from exc
     except UnicodeDecodeError as exc:
         raise ValidationError("O arquivo precisa estar codificado em UTF-8.") from exc
 
@@ -162,7 +163,7 @@ def montar_resultado(solicitacao: dict, usuario: dict, criado: bool, analise: di
         "recomendacoes": [
             {
                 "posicao": posicao, "codigo_acao": rec["codigo_acao"],
-                "titulo": rec["codigo_acao"].replace("_", " ").title(),
+                "titulo": legivel(rec["codigo_acao"]),
                 "ganho_previsto": rec["ganho_previsto"], "confianca": rec["confianca"],
                 "esforco": rec["esforco"], "explicacao": rec["explicacao"], "risco": rec["risco"],
             }
@@ -239,7 +240,7 @@ def exportar_perfil_para_app(
     """Gera o arquivo que o app JOVI le para mostrar a evolucao do usuario."""
     usuario = database.buscar_usuario(usuario_id, pasta_dados)
     if not usuario:
-        raise ValueError("Usuario nao encontrado.")
+        raise ValueError("Usuário não encontrado.")
     evolucao = resumo_evolucao(usuario_id, pasta_dados)
     pendente = database.buscar_recomendacao_pendente(usuario_id, pasta_dados)
     dados = {

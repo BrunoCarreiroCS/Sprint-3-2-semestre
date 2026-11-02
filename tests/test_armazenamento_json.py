@@ -60,7 +60,7 @@ class ArmazenamentoJsonTest(unittest.TestCase):
             database.criar_usuario("Caio", "expert", "natural", False, self.dados)
 
     def test_arquivo_corrompido_gera_erro_claro(self) -> None:
-        (self.dados / "usuarios.json").write_text("{ isto nao e json", encoding="utf-8")
+        (self.dados / "usuarios.json").write_text("{ isto não e json", encoding="utf-8")
         with self.assertRaises(database.ArmazenamentoError) as contexto:
             database.listar_usuarios(self.dados)
         self.assertIn("corrompido", str(contexto.exception))
@@ -91,7 +91,7 @@ class ArmazenamentoJsonTest(unittest.TestCase):
         saida = io.StringIO()
         with patch("builtins.input", side_effect=["0"]), redirect_stdout(saida):
             main.main(self.dados)
-        self.assertIn("Nao foi possivel abrir os dados do LensLab", saida.getvalue())
+        self.assertIn("Não foi possível abrir os dados do LensLab", saida.getvalue())
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ class GeminiResponseError(ValueError):
 
 def validar_resposta_ia(dados: dict) -> dict:
     if not isinstance(dados, dict):
-        raise GeminiResponseError("Resposta da IA nao e um objeto JSON.")
+        raise GeminiResponseError("Resposta da IA não é um objeto JSON.")
     obrigatorios = {"assunto_principal", "tipo_cena", "intencao_percebida", "movimento_percebido", "problemas", "composicao", "acoes_sugeridas", "incertezas"}
     ausentes = obrigatorios - set(dados)
     if ausentes:
@@ -37,7 +37,7 @@ def validar_resposta_ia(dados: dict) -> dict:
     if not isinstance(dados["movimento_percebido"], bool):
         raise GeminiResponseError("movimento_percebido deve ser booleano.")
     if not isinstance(dados["problemas"], list) or not isinstance(dados["acoes_sugeridas"], list):
-        raise GeminiResponseError("Problemas e acoes devem ser listas.")
+        raise GeminiResponseError("Problemas e ações devem ser listas.")
     problemas_validos = []
     incertezas = list(dados.get("incertezas", [])) if isinstance(dados.get("incertezas"), list) else []
     for item in dados["problemas"]:
@@ -46,20 +46,20 @@ def validar_resposta_ia(dados: dict) -> dict:
         codigo = item.get("codigo")
         confianca = item.get("confianca")
         if codigo not in PROBLEMAS_PERMITIDOS:
-            incertezas.append(f"Codigo de problema ignorado: {codigo}")
+            incertezas.append(f"Código de problema ignorado: {codigo}")
             continue
         if not isinstance(confianca, (int, float)) or not 0 <= confianca <= 1:
-            raise GeminiResponseError("Confianca deve estar entre 0 e 1.")
+            raise GeminiResponseError("Confiança deve estar entre 0 e 1.")
         problemas_validos.append({
             "codigo": codigo, "confianca": float(confianca),
             "evidencia_visual": str(item.get("evidencia_visual", "")).strip()[:240],
         })
     composicao = dados["composicao"]
     if not isinstance(composicao, dict) or not isinstance(composicao.get("pontuacao"), (int, float)):
-        raise GeminiResponseError("Composicao invalida.")
+        raise GeminiResponseError("Composição inválida.")
     pontuacao = float(composicao["pontuacao"])
     if not 0 <= pontuacao <= 100:
-        raise GeminiResponseError("Pontuacao de composicao fora do intervalo.")
+        raise GeminiResponseError("Pontuação de composição fora do intervalo.")
     acoes = [acao for acao in dados["acoes_sugeridas"] if acao in ACOES_PERMITIDAS]
     return {
         "assunto_principal": str(dados["assunto_principal"])[:80],
@@ -98,11 +98,11 @@ def analisar_com_gemini_demo(caminho_imagem: str | Path, objetivo: str, intencao
         "movimento_percebido": False,
         "problemas": [
             {"codigo": "pouca_luz", "confianca": 0.82, "evidencia_visual": "Sombras profundas cobrindo parte do assunto."},
-            {"codigo": "composicao_fraca", "confianca": 0.55, "evidencia_visual": "Assunto proximo da borda do quadro."},
+            {"codigo": "composicao_fraca", "confianca": 0.55, "evidencia_visual": "Assunto próximo da borda do quadro."},
         ],
         "composicao": {"pontuacao": 58.0, "observacao": "Enquadramento poderia centralizar melhor o assunto principal."},
         "acoes_sugeridas": ["adicionar_iluminacao", "modo_noturno", "reposicionar_enquadramento"],
-        "incertezas": ["Resposta gerada em modo de demonstracao (JOVI_DEMO_MODE); nao reflete a foto real."],
+        "incertezas": ["Resposta gerada em modo de demonstração (JOVI_DEMO_MODE); não reflete a foto real."],
     })
     return {"sucesso": True, "dados": dados, "erro": None}
 
@@ -138,9 +138,9 @@ def analisar_com_gemini(caminho_imagem: str | Path, objetivo: str, intencao: str
 
     cliente = genai.Client(api_key=chave, http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS))
     prompt = (
-        "Analise esta fotografia como tutor de fotografia. Seja conservador: descreva apenas evidencias visiveis. "
-        f"Objetivo declarado: {objetivo}. Intencao declarada: {intencao}. "
-        "Nao identifique pessoas. Diferencie problema tecnico de escolha artistica."
+        "Analise esta fotografia como tutor de fotografia. Seja conservador: descreva apenas evidências visíveis. "
+        f"Objetivo declarado: {objetivo}. Intenção declarada: {intencao}. "
+        "Não identifique pessoas. Diferencie problema técnico de escolha artística."
     )
     erro_final = "falha_api"
     for _tentativa in range(GEMINI_MAX_TENTATIVAS):

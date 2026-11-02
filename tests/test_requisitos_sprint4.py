@@ -28,7 +28,7 @@ from validators import ValidationError, validar_inteiro
 
 MODULOS_DO_SISTEMA = (
     "analysis_service", "config", "database", "gemini_client", "image_analyzer", "integracao",
-    "learning_engine", "main", "recommendation_engine", "reports", "validators",
+    "learning_engine", "main", "recommendation_engine", "reports", "textos", "validators",
 )
 
 REC = {
@@ -79,12 +79,12 @@ class Req1MenuTest(BaseSessao):
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.sessao(["1", "1", "6", "7", "0"])
         self.assertEqual(saida.count("HUMANLY JOVI AI LENSLAB"), 3)
-        self.assertIn("Sessao encerrada", saida)
+        self.assertIn("Sessão encerrada", saida)
 
     def test_opcao_zero_finaliza_a_execucao(self) -> None:
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.sessao(["1", "1", "0"])
-        self.assertTrue(saida.rstrip().endswith("Suas fotos nao foram armazenadas nos arquivos de dados."))
+        self.assertTrue(saida.rstrip().endswith("Suas fotos não foram armazenadas nos arquivos de dados."))
 
 
 class Req2SubrotinasTest(unittest.TestCase):
@@ -119,16 +119,16 @@ class Req3ValidacaoExcecoesTest(BaseSessao):
     def test_opcao_invalida_e_pedida_de_novo_sem_encerrar(self) -> None:
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         saida = self.sessao(["1", "1", "x", "11", "-1", "0"])
-        self.assertEqual(saida.count("Entrada invalida"), 3)
-        self.assertIn("Sessao encerrada", saida)
+        self.assertEqual(saida.count("Entrada inválida"), 3)
+        self.assertIn("Sessão encerrada", saida)
 
     def test_falha_nos_dados_durante_a_sessao_mostra_mensagem_e_continua(self) -> None:
         database.criar_usuario("Ana", "iniciante", "natural", False, self.dados)
         erro = database.ArmazenamentoError("O arquivo de dados perfil_1.json esta corrompido.")
         with patch("database.listar_analises", side_effect=erro):
             saida = self.sessao(["1", "1", "6", "0"])
-        self.assertIn("Operacao nao concluida: O arquivo de dados perfil_1.json esta corrompido.", saida)
-        self.assertIn("Sessao encerrada", saida)
+        self.assertIn("Operação não concluída: O arquivo de dados perfil_1.json esta corrompido.", saida)
+        self.assertIn("Sessão encerrada", saida)
 
     def test_validador_rejeita_texto_fora_da_faixa(self) -> None:
         for valor in ("abc", "0", "6", ""):
@@ -240,7 +240,7 @@ class Req6IntegracaoTest(BaseSessao):
         self.assertTrue(integracao.validar_solicitacao(pedido)["foto"].is_absolute())
 
     def test_arquivos_que_nao_sao_json_sao_ignorados(self) -> None:
-        (self.pastas["entrada"] / "anotacao.txt").write_text("nao processar", encoding="utf-8")
+        (self.pastas["entrada"] / "anotacao.txt").write_text("não processar", encoding="utf-8")
         self.assertEqual(integracao.processar_pendentes(self.dados, self.base, self.cliente), [])
         self.assertTrue((self.pastas["entrada"] / "anotacao.txt").exists())
 
@@ -269,7 +269,7 @@ class Req7InterfaceTest(BaseSessao):
 
     def test_primeiro_uso_leva_direto_para_criar_perfil(self) -> None:
         saida = self.sessao(["0"])
-        self.assertIn("Ainda nao ha perfis. Vamos criar o primeiro.", saida)
+        self.assertIn("Ainda não há perfis. Vamos criar o primeiro.", saida)
         self.assertIn("CRIAR PERFIL", saida)
 
 

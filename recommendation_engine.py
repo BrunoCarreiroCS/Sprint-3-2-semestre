@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from image_analyzer import normalizar_nitidez
+from textos import legivel
 
 
 PESOS_OBJETIVO = {
@@ -21,17 +22,17 @@ ACOES = {
     "adicionar_iluminacao": {
         "resolve": {"pouca_luz": 1.0, "sujeito_borrado": 0.35},
         "risco": "Pode alterar a atmosfera ou criar sombras duras.", "esforco": "medio",
-        "explicacao": "Adicionar luz permite uma captura mais rapida e reduz o borrao sem depender de exposicao longa.",
+        "explicacao": "Adicionar luz permite uma captura mais rápida e reduz o borrão sem depender de exposição longa.",
     },
     "modo_noturno": {
         "resolve": {"pouca_luz": 0.8, "ruido": 0.4},
-        "risco": "Exposicao longa pode borrar pessoas ou objetos em movimento.", "esforco": "baixo",
-        "explicacao": "O modo noturno combina exposicoes para recuperar detalhes em cenas escuras.",
+        "risco": "Exposição longa pode borrar pessoas ou objetos em movimento.", "esforco": "baixo",
+        "explicacao": "O modo noturno combina exposições para recuperar detalhes em cenas escuras.",
     },
     "estabilizar_camera": {
         "resolve": {"desfoque": 1.0, "sujeito_borrado": 0.4, "pouca_luz": 0.25},
-        "risco": "Nao corrige o movimento do assunto fotografado.", "esforco": "baixo",
-        "explicacao": "Apoiar o aparelho ou usar temporizador reduz o tremor provocado pelas maos.",
+        "risco": "Não corrige o movimento do assunto fotografado.", "esforco": "baixo",
+        "explicacao": "Apoiar o aparelho ou usar temporizador reduz o tremor provocado pelas mãos.",
     },
     "reduzir_exposicao": {
         "resolve": {"excesso_luz": 1.0, "realces_estourados": 0.9, "sujeito_borrado": 0.4},
@@ -41,27 +42,27 @@ ACOES = {
     "ajustar_contraste": {
         "resolve": {"baixo_contraste": 1.0},
         "risco": "Contraste excessivo pode eliminar detalhes de sombras e luzes.", "esforco": "baixo",
-        "explicacao": "Ajustar iluminacao ou contraste ajuda a separar o assunto do fundo.",
+        "explicacao": "Ajustar iluminação ou contraste ajuda a separar o assunto do fundo.",
     },
     "reduzir_saturacao": {
         "resolve": {"saturacao_excessiva": 1.0},
         "risco": "Cores podem perder impacto visual.", "esforco": "baixo",
-        "explicacao": "Reduzir saturacao recupera uma aparencia mais natural.",
+        "explicacao": "Reduzir saturação recupera uma aparência mais natural.",
     },
     "aumentar_nitidez": {
         "resolve": {"desfoque": 0.45},
-        "risco": "Nitidez digital nao recupera detalhes realmente perdidos.", "esforco": "baixo",
-        "explicacao": "Uma previa de nitidez evidencia contornos, mas a melhor solucao e recapturar com estabilidade.",
+        "risco": "Nitidez digital não recupera detalhes realmente perdidos.", "esforco": "baixo",
+        "explicacao": "Uma prévia de nitidez evidencia contornos, mas a melhor solução é recapturar com estabilidade.",
     },
     "evitar_zoom_digital": {
         "resolve": {"baixa_resolucao": 0.75, "zoom_digital": 1.0},
-        "risco": "Pode exigir aproximacao fisica do assunto.", "esforco": "medio",
+        "risco": "Pode exigir aproximação física do assunto.", "esforco": "medio",
         "explicacao": "Aproximar-se preserva mais detalhes que ampliar digitalmente.",
     },
     "reposicionar_enquadramento": {
         "resolve": {"composicao_fraca": 1.0, "assunto_centralizado": 0.8},
-        "risco": "O melhor enquadramento depende da intencao do fotografo.", "esforco": "medio",
-        "explicacao": "Mudar posicao, angulo ou recorte pode destacar melhor o assunto principal.",
+        "risco": "O melhor enquadramento depende da intenção do fotógrafo.", "esforco": "medio",
+        "explicacao": "Mudar posição, ângulo ou recorte pode destacar melhor o assunto principal.",
     },
 }
 
@@ -124,15 +125,15 @@ def detectar_problemas(metricas: dict, analise_ia: dict | None = None) -> dict[s
         add("excesso_luz", min(1, (brilho - 78) / 20 + 0.35), "MEDIDO", f"Brilho medido em {brilho:.1f}/100.")
     nitidez = float(metricas.get("nitidez_bruta", 0))
     if nitidez < 120:
-        add("desfoque", min(1, (120 - nitidez) / 120 + 0.25), "MEDIDO", f"Indice de nitidez bruto em {nitidez:.1f}.")
+        add("desfoque", min(1, (120 - nitidez) / 120 + 0.25), "MEDIDO", f"Índice de nitidez bruto em {nitidez:.1f}.")
     if float(metricas.get("contraste", 0)) < 14:
-        add("baixo_contraste", 0.7, "MEDIDO", "Dispersao de luminancia abaixo do intervalo de referencia.")
+        add("baixo_contraste", 0.7, "MEDIDO", "Dispersão de luminância abaixo do intervalo de referência.")
     if float(metricas.get("saturacao", 0)) > 72:
-        add("saturacao_excessiva", 0.7, "MEDIDO", "Saturacao media elevada.")
+        add("saturacao_excessiva", 0.7, "MEDIDO", "Saturação média elevada.")
     if float(metricas.get("realces_estourados", 0)) > 8:
-        add("realces_estourados", 0.8, "MEDIDO", "Muitos pixels proximos do branco absoluto.")
+        add("realces_estourados", 0.8, "MEDIDO", "Muitos pixels próximos do branco absoluto.")
     if float(metricas.get("megapixels", 0)) < 0.5:
-        add("baixa_resolucao", 0.75, "MEDIDO", "Resolucao limitada para recorte ou ampliacao.")
+        add("baixa_resolucao", 0.75, "MEDIDO", "Resolução limitada para recorte ou ampliação.")
 
     for problema in (analise_ia or {}).get("problemas", []):
         codigo = problema.get("codigo")
@@ -140,11 +141,11 @@ def detectar_problemas(metricas: dict, analise_ia: dict | None = None) -> dict[s
             continue
         add(
             codigo, float(problema.get("confianca", 0.5)), "IA",
-            str(problema.get("evidencia_visual", "Inferencia visual sem detalhe.")),
+            str(problema.get("evidencia_visual", "Inferência visual sem detalhe.")),
         )
     composicao = (analise_ia or {}).get("composicao", {})
     if isinstance(composicao.get("pontuacao"), (int, float)) and composicao["pontuacao"] < 55:
-        add("composicao_fraca", (55 - composicao["pontuacao"]) / 55 + 0.4, "IA", composicao.get("observacao", "Composicao pode melhorar."))
+        add("composicao_fraca", (55 - composicao["pontuacao"]) / 55 + 0.4, "IA", composicao.get("observacao", "Composição pode melhorar."))
     return problemas
 
 
@@ -165,7 +166,7 @@ def formatar_contexto(contexto_chave: str) -> str:
     objetivo, faixa, movimento, nivel, estilo = partes
     faixa_legivel = _FAIXA_LEGIVEL.get(faixa, faixa)
     movimento_legivel = "com movimento" if movimento == "movimento" else "assunto parado"
-    return f"{objetivo.replace('_', ' ').title()}, {faixa_legivel}, {movimento_legivel}, nivel {nivel}, estilo {estilo}"
+    return f"{legivel(objetivo)}, {faixa_legivel}, {movimento_legivel}, nível {legivel(nivel).lower()}, estilo {estilo}"
 
 
 def simular_intervencoes(
@@ -191,7 +192,7 @@ def simular_intervencoes(
             continue
         if codigo == "modo_noturno" and movimento:
             ganho *= 0.45
-            contribuicoes.append("Movimento detectado reduz a utilidade de exposicao prolongada.")
+            contribuicoes.append("Movimento detectado reduz a utilidade de exposição prolongada.")
         peso = _clamp(float(pesos_aprendidos.get(codigo, 1.0)), 0.5, 1.5)
         ganho = _clamp(ganho * peso, 0, 35)
         confianca = (
@@ -210,9 +211,9 @@ def simular_intervencoes(
     if not alternativas:
         alternativas.append({
             "codigo_acao": "manter_configuracao", "ganho_previsto": 0.0,
-            "risco": "Nenhum problema tecnico relevante foi confirmado.", "esforco": "baixo",
-            "confianca": "media", "explicacao": "A fotografia esta equilibrada para os indicadores avaliados.",
-            "evidencias": ["Metricas dentro dos intervalos de referencia."],
+            "risco": "Nenhum problema técnico relevante foi confirmado.", "esforco": "baixo",
+            "confianca": "media", "explicacao": "A fotografia está equilibrada para os indicadores avaliados.",
+            "evidencias": ["Métricas dentro dos intervalos de referência."],
             "peso_aprendido": 1.0,
         })
     return deepcopy(alternativas[:limite])
@@ -229,7 +230,7 @@ def recomendar_sem_foto(perfil: dict, objetivo: str, ambiente: str, movimento: b
     if movimento:
         problemas["sujeito_borrado"] = {
             "severidade": 0.7, "fontes": ["USUARIO"],
-            "evidencias": ["O usuario informou que o assunto esta em movimento."], "estado": "provavel",
+            "evidencias": ["O usuário informou que o assunto está em movimento."], "estado": "provavel",
         }
     return simular_intervencoes(problemas, movimento)
 

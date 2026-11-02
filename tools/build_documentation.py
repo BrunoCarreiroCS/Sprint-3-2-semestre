@@ -896,6 +896,7 @@ def montar_conteudo(ex: dict) -> list:
         ["database.py", "Persistência em arquivos JSON", "`salvar_analise_com_recomendacoes(analise, ...) -> int`"],
         ["gemini_client.py", "Cliente da API externa", "`analisar_com_gemini(caminho_imagem, objetivo, intencao) -> dict`"],
         ["reports.py", "Textos e relatórios", "`formatar_resumo_analise(resultado) -> str`"],
+        ["textos.py", "Rótulos acentuados para códigos internos", "`legivel(codigo) -> str`"],
     ], [4.5 * cm, 4.1 * cm, W - 8.6 * cm], "Módulos e uma função representativa de cada um.")
     s += [nota("Decisão técnica",
                "A IA é injetada como parâmetro (<font face='Mono' size='8.5'>cliente_ia</font>) em "
@@ -1050,6 +1051,8 @@ def montar_conteudo(ex: dict) -> list:
         ["Modificado", "Integridade garantida por transações SQL", "Gravação atômica e validações em database.py", "Mesma proteção contra dados pela metade, sem banco."],
         ["Modificado", "SQL escrito dentro do motor de aprendizado", "Funções de persistência com parâmetros e retorno", "Separação de responsabilidades e testes mais simples."],
         ["Modificado", "Menu com 9 opções", "Menu com 10 opções", "Nova opção de integração."],
+        ["Modificado", "Textos da interface sem acentos e códigos crus (ex.: “Estabilizar Camera”)",
+         "Textos acentuados e rótulos legíveis gerados por textos.legivel", "Interface na língua do estudante (problema P05 da avaliação de Nielsen)."],
         ["Adicionado", "—", "Integração com o app JOVI por arquivos JSON", "Requisito de integração com o restante da solução."],
         ["Adicionado", "—", "Contrato versionado com exemplo em integracao/exemplos/", "Outra parte da solução consegue gerar pedidos válidos."],
         ["Adicionado", "—", "Exportação do perfil para o app", "O app exibe evolução e conselhos aprendidos."],
