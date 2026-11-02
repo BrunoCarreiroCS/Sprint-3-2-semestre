@@ -104,7 +104,7 @@ GEMINI_MODEL=gemini-flash-latest
 
 O `.env` está ignorado pelo Git e não entra no ZIP. Não cole a chave no código, no PDF ou em capturas de tela.
 
-Para apresentar o modo híbrido sem depender de internet ou de uma chave real, defina `JOVI_DEMO_MODE=1` no `.env`. Nesse modo o cliente Gemini é substituído por respostas simuladas (mesma validação de schema), e o menu mostra "Gemini: chave demo".
+Para apresentar o modo híbrido sem depender de internet ou de uma chave real, defina `JOVI_DEMO_MODE=1` no `.env`. Nesse modo o cliente Gemini é substituído por respostas simuladas (mesma validação de schema), e o cabeçalho do menu mostra "IA: ligada (modo demonstração)".
 
 ## Demonstração sugerida
 

@@ -864,7 +864,7 @@ def montar_conteudo(ex: dict) -> list:
         ["7", "Ver evolução", "Mostra ganho médio, recapturas bem-sucedidas e os conselhos que mais funcionaram."],
         ["8", "Orientação sem foto", "Recomenda com base no ambiente descrito pelo usuário (herança da Sprint 2)."],
         ["9", "Privacidade e dados", "Altera o consentimento, exporta um resumo ou exclui o perfil e seus arquivos."],
-        ["10", "Integração com o app JOVI", "Processa solicitações JSON recebidas e exporta o perfil para o app."],
+        ["10", "Trocar dados com o app da câmera", "Processa solicitações JSON recebidas e exporta o perfil para o app."],
         ["0", "Encerrar", "Finaliza a execução; Ctrl+C também encerra sem mensagem de erro técnico."],
     ], [1.4 * cm, 4.0 * cm, W - 5.4 * cm], "Funcionalidades do menu principal.")
     s += [
@@ -1058,6 +1058,10 @@ def montar_conteudo(ex: dict) -> list:
         ["Adicionado", "—", "Exportação do perfil para o app", "O app exibe evolução e conselhos aprendidos."],
         ["Adicionado", "—", "Mensagem clara para arquivo de dados corrompido", "Falha previsível tratada com try/except."],
         ["Adicionado", "—", "Sessão segura ao excluir o perfil em uso; Ctrl+C sem traceback", "Robustez da interface."],
+        ["Modificado", "Simulação listava todas as dicas e pedia a foto de novo",
+         "Só dicas com prévia; foto da análise oferecida com Enter (guardada só na memória)", "Problemas P16 e P18 da avaliação de Nielsen."],
+        ["Modificado", "Cabeçalho “Gemini: chave …”, títulos diferentes do menu, opção 10 com “JSON”",
+         "Cabeçalho “IA: ligada/desligada”, títulos iguais ao menu, opção 10 sem jargão", "Problemas P02, P12, P13, P26 e P30 da avaliação de Nielsen."],
         ["Mantido", "Ciclo medir, interpretar, simular, recapturar e aprender", "Inalterado", "É o núcleo da proposta."],
         ["Mantido", "API Gemini com schema e modo offline", "Inalterado", "Requisito de API externa já atendido."],
     ], [2.4 * cm, 4.4 * cm, 4.7 * cm, W - 11.5 * cm], "Alterações da Sprint 3 para a Sprint 4.")
@@ -1093,6 +1097,7 @@ def montar_conteudo(ex: dict) -> list:
         "test_recommendation_and_gemini": "Pontuação, cenários, validação da resposta da IA e repetição em falhas",
         "test_reports": "Textos em linguagem simples, sem códigos internos",
         "test_requisitos_sprint4": "Um grupo de testes por critério da Sprint 4",
+        "test_usabilidade_sprint4": "Correções de usabilidade apontadas na avaliação de Nielsen",
         "test_validators_and_images": "Validações, métricas, EXIF, cópia temporária e preservação do original",
     }
     linhas_testes = [["Arquivo", "Testes", "O que cobre"]]

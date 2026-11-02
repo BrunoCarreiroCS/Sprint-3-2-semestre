@@ -46,6 +46,11 @@ NIVEIS = ["iniciante", "intermediario", "avancado"]
 ESTILOS = ["natural", "equilibrado", "vibrante"]
 
 ULTIMO_OBJETIVO: dict[int, str] = {}
+# caminho da foto de cada analise feita nesta sessao (so em memoria: nunca vai para os arquivos de dados)
+FOTOS_DA_SESSAO: dict[int, Path] = {}
+ACOES_COM_PREVIA = {
+    "adicionar_iluminacao", "ajustar_contraste", "reduzir_saturacao", "aumentar_nitidez", "reposicionar_enquadramento",
+}
 
 
 def titulo(texto: str) -> None:
@@ -234,7 +239,7 @@ def excluir_perfil(
         f"Digite EXCLUIR {usuario['apelido']} para confirmar (apaga todo o histórico deste perfil): "
     ).strip()
     if confirmacao != f"EXCLUIR {usuario['apelido']}":
-        print("Exclusão cancelada.")
+        print(f"O texto não confere (digite exatamente EXCLUIR {usuario['apelido']}). Nada foi apagado.")
         return
     database.excluir_usuario(usuario["id"], pasta_dados)
     print(f"Perfil {usuario['apelido']} e todo o histórico foram excluídos.")
@@ -282,6 +287,7 @@ def executar_analise(
     if quer_detalhes:
         print(formatar_analise(resultado))
     resultado["caminho_original"] = str(caminho)
+    FOTOS_DA_SESSAO[resultado["analise_id"]] = Path(caminho)
     recomendacoes = resultado.get("recomendacoes") or []
     tem_recomendacao_real = bool(recomendacoes) and recomendacoes[0]["codigo_acao"] != "manter_configuracao"
     if oferecer_proximo_passo and tem_recomendacao_real:
@@ -311,8 +317,12 @@ def selecionar_analise(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> di
     return database.buscar_analise(resumo["id"], pasta_dados) if resumo else None
 
 
-def selecionar_recomendacao(analise_id: int, pasta_dados: str | Path = DADOS_DIR) -> dict | None:
+def selecionar_recomendacao(
+    analise_id: int, pasta_dados: str | Path = DADOS_DIR, apenas: set[str] | None = None
+) -> dict | None:
     recomendacoes = database.listar_recomendacoes(analise_id, pasta_dados)
+    if apenas is not None:
+        recomendacoes = [r for r in recomendacoes if r["codigo_acao"] in apenas]
     return escolher_registro(
         recomendacoes,
         lambda r: f"{legivel(r['codigo_acao'])} (ganho previsto +{r['ganho_previsto']:.1f})",
@@ -320,34 +330,47 @@ def selecionar_recomendacao(analise_id: int, pasta_dados: str | Path = DADOS_DIR
     )
 
 
+def foto_da_analise(analise: dict) -> Path | None:
+    """Reaproveita a foto analisada nesta sessao; so pede o arquivo de novo quando nao ha como saber qual foi."""
+    lembrada = FOTOS_DA_SESSAO.get(analise["id"])
+    if lembrada and lembrada.exists() and calcular_hash(lembrada) == analise["imagem_hash"]:
+        usar = solicitar_validado(
+            f"Usar a mesma foto da análise ({lembrada.name})? (sim/não, Enter = sim): ", normalizar_sim_nao, padrao=True
+        )
+        if usar:
+            return lembrada
+    caminho = escolher_imagem(f"Selecione a foto original ({analise['nome_arquivo']})")
+    if caminho is None:
+        return None
+    if calcular_hash(caminho) != analise["imagem_hash"]:
+        print("A imagem informada não corresponde à análise selecionada.")
+        return None
+    return caminho
+
+
 def explorar_simulacao(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> None:
-    titulo("EXPLORAR CENÁRIOS E SE?")
+    titulo("EXPLORAR SIMULAÇÃO 'E SE?'")
     analise = selecionar_analise(usuario, pasta_dados)
     if not analise:
         return
-    recomendacao = selecionar_recomendacao(analise["id"], pasta_dados)
+    com_previa = [r for r in database.listar_recomendacoes(analise["id"], pasta_dados) if r["codigo_acao"] in ACOES_COM_PREVIA]
+    if not com_previa:
+        print("Nenhuma dica desta análise tem prévia digital: todas exigem uma nova foto. Use 'Comparar antes e depois'.")
+        return
+    print("Dicas com prévia digital (as demais só podem ser verificadas com uma nova foto):")
+    recomendacao = selecionar_recomendacao(analise["id"], pasta_dados, ACOES_COM_PREVIA)
     if not recomendacao:
         return
-    simulaveis = {
-        "adicionar_iluminacao", "ajustar_contraste", "reduzir_saturacao",
-        "aumentar_nitidez", "reposicionar_enquadramento",
-    }
-    if recomendacao["codigo_acao"] not in simulaveis:
-        print("Essa orientação exige recaptura física e não possui prévia digital honesta.")
-        return
-    caminho = escolher_imagem("Informe novamente a foto original")
+    caminho = foto_da_analise(analise)
     if caminho is None:
         return
-    if calcular_hash(caminho) != analise["imagem_hash"]:
-        print("A imagem informada não corresponde à análise selecionada.")
-        return
     destino = gerar_simulacao(caminho, recomendacao["codigo_acao"], usuario["id"])
-    print(f"Prévia educativa criada em: {destino}")
+    print(f"Prévia educativa criada em: {destino.relative_to(ROOT_DIR) if destino.is_relative_to(ROOT_DIR) else destino}")
     print("Ela é uma simulação visual, não uma prova de melhoria. A prova ocorre na recaptura.")
 
 
 def comparar_recaptura(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> None:
-    titulo("COMPARAR ANTES E DEPOIS")
+    titulo("COMPARAR ANTES E DEPOIS E APRENDER")
     antes = None
     recomendacao = None
     pendente = database.buscar_recomendacao_pendente(usuario["id"], pasta_dados)
@@ -408,7 +431,7 @@ def comparar_recaptura(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> No
 
 
 def marcar_conselho(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> None:
-    titulo("ESCOLHER RECOMENDAÇÃO")
+    titulo("MARCAR RECOMENDAÇÃO PARA TESTAR")
     analise = selecionar_analise(usuario, pasta_dados)
     if not analise:
         return
@@ -419,7 +442,7 @@ def marcar_conselho(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> None:
 
 
 def mostrar_historico(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> None:
-    titulo("HISTÓRICO")
+    titulo("VER HISTÓRICO")
     analises = database.listar_analises(usuario["id"], pasta_dados)
     if not analises:
         print("Nenhuma análise registrada.")
@@ -432,7 +455,7 @@ def mostrar_historico(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> Non
 
 
 def recomendacao_sem_foto(usuario: dict) -> None:
-    titulo("ORIENTAÇÃO SEM FOTO")
+    titulo("RECEBER ORIENTAÇÃO SEM FOTO")
     objetivo = escolher_rotulada("Objetivo", OBJETIVOS)
     if objetivo is None:
         return
@@ -469,7 +492,7 @@ def gerenciar_dados(usuario: dict, pasta_dados: str | Path = DADOS_DIR) -> tuple
             database.excluir_usuario(usuario["id"], pasta_dados)
             print("Perfil e histórico excluídos permanentemente dos arquivos locais.")
             return None, True
-        print("Exclusão cancelada.")
+        print(f"O texto não confere (digite exatamente EXCLUIR {usuario['apelido']}). Nada foi apagado.")
     return usuario, False
 
 
@@ -477,7 +500,7 @@ def menu_integracao(
     usuario: dict, pasta_dados: str | Path = DADOS_DIR, base: str | Path = INTEGRACAO_DIR
 ) -> None:
     """Troca de arquivos JSON com o app da camera JOVI e as demais partes da solucao."""
-    titulo("INTEGRAÇÃO COM O APP JOVI")
+    titulo("TROCAR DADOS COM O APP DA CÂMERA")
     pendentes = integracao.listar_pendentes(base)
     print(f"Pasta de troca: {Path(base).name}/  |  Solicitações aguardando na entrada: {len(pendentes)}")
     print("  1. Processar solicitações pendentes")
@@ -503,10 +526,18 @@ def menu_integracao(
         print(f"Perfil exportado para o app em: {destino}")
 
 
+def estado_ia(usuario: dict) -> str:
+    """O que o estudante precisa saber sobre a IA: a escolha dele vem antes do estado da chave."""
+    if not usuario.get("consentimento_api"):
+        return "desligada (você não autorizou)"
+    if is_demo_mode():
+        return "ligada (modo demonstração)"
+    return "ligada" if get_gemini_api_key() else "sem chave configurada (modo offline)"
+
+
 def exibir_menu(usuario: dict) -> None:
-    chave = "demo" if is_demo_mode() else ("configurada" if get_gemini_api_key() else "ausente")
     titulo("HUMANLY JOVI AI LENSLAB")
-    print(f"Perfil: {usuario['apelido']} | Nível: {legivel(usuario['nivel'])} | Gemini: chave {chave}")
+    print(f"Perfil: {usuario['apelido']} | Nível: {legivel(usuario['nivel'])} | IA: {estado_ia(usuario)}")
     print("  1. Trocar ou criar perfil")
     print("  2. Analisar fotografia")
     print("  3. Explorar simulação 'E se?'")
@@ -516,7 +547,7 @@ def exibir_menu(usuario: dict) -> None:
     print("  7. Ver evolução")
     print("  8. Receber orientação sem foto")
     print("  9. Privacidade e dados")
-    print(" 10. Integração com o app JOVI (arquivos JSON)")
+    print(" 10. Trocar dados com o app da câmera")
     print("  0. Encerrar")
 
 
@@ -545,7 +576,7 @@ def main(pasta_dados: str | Path = DADOS_DIR) -> None:
 def executar_sessao(pasta_dados: str | Path = DADOS_DIR) -> None:
     ensure_directories()
     database.inicializar_armazenamento(pasta_dados)
-    print("JOVI AI LensLab: um laboratório para testar, medir e aprender fotografia.")
+    print("Humanly JOVI AI LensLab: um laboratório para testar, medir e aprender fotografia.")
     usuario = selecionar_perfil(pasta_dados)
     if not usuario:
         print("Nenhum perfil selecionado. Até logo!")
